@@ -207,7 +207,7 @@ export default function TicketsPage() {
 		try {
 			// Create new reply object
 			const newReply: TicketReply = {
-				id: Date.now().toString(),
+				id: Date.now().toString(), // Add this missing id field
 				userId: user._id || user.id || "",
 				userName: user.name || "Unknown",
 				message: replyMessage,
@@ -237,7 +237,7 @@ export default function TicketsPage() {
 				description: "Your reply has been added to the ticket.",
 			});
 
-			//In production, make API call to save reply to backend
+			// TODO: In production, make API call to save reply to backend
 			// const res = await fetch(`/api/tickets/${selectedTicket._id}/replies`, {
 			//   method: "POST",
 			//   headers: { "Content-Type": "application/json" },
