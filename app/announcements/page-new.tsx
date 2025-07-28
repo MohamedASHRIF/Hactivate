@@ -3,7 +3,6 @@
 import { Suspense } from "react"
 import { useState, useEffect } from "react"
 import { useAuth } from "@/components/auth-provider"
-import { useNotifications } from "@/components/notification-provider"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Header } from "@/components/layout/header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -45,7 +44,6 @@ interface Announcement {
 function AnnouncementsContent() {
   const { user } = useAuth()
   const { toast } = useToast()
-  const { refreshNotifications } = useNotifications()
   const searchParams = useSearchParams()
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
@@ -68,16 +66,13 @@ function AnnouncementsContent() {
       const response = await fetch('/api/announcements')
       if (response.ok) {
         const data = await response.json()
-        console.log('Fetched announcements:', data) // Debug log
         setAnnouncements(data.map((announcement: any) => ({
           ...announcement,
-          id: announcement._id || announcement.id, // Ensure we have an id
           createdAt: new Date(announcement.createdAt),
           updatedAt: new Date(announcement.updatedAt),
           expiresAt: announcement.expiresAt ? new Date(announcement.expiresAt) : undefined
         })))
       } else {
-        console.error('Failed to fetch announcements:', response.status, response.statusText)
         toast({
           title: "Error fetching announcements",
           description: "Failed to load announcements",
@@ -101,43 +96,6 @@ function AnnouncementsContent() {
       fetchAnnouncements()
     }
   }, [user])
-
-  // Handle announcement creation
-  const handleCreateAnnouncement = async (formData: any) => {
-    try {
-      const response = await fetch('/api/announcements', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData)
-      })
-
-      if (response.ok) {
-        toast({
-          title: "Announcement created",
-          description: "Your announcement has been created successfully.",
-        })
-        setIsCreateDialogOpen(false)
-        fetchAnnouncements() // Refresh the list
-        refreshNotifications() // Refresh notifications
-      } else {
-        const errorData = await response.json()
-        toast({
-          title: "Error creating announcement",
-          description: errorData.error || "Failed to create announcement",
-          variant: "destructive"
-        })
-      }
-    } catch (error) {
-      console.error('Error creating announcement:', error)
-      toast({
-        title: "Error",
-        description: "Failed to create announcement",
-        variant: "destructive"
-      })
-    }
-  }
 
   const getCategoryIcon = (category: string) => {
     switch (category) {
@@ -183,19 +141,10 @@ function AnnouncementsContent() {
     const matchesSearch = announcement.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          announcement.content.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesCategory = categoryFilter === "all" || announcement.category === categoryFilter
+    const matchesAudience = announcement.targetAudience.includes(user?.role as any) || user?.role === "admin"
     
-    console.log('Filtering announcement:', {
-      title: announcement.title,
-      matchesSearch,
-      matchesCategory
-    })
-    
-    return matchesSearch && matchesCategory
+    return matchesSearch && matchesCategory && matchesAudience
   })
-
-  console.log('Total announcements:', announcements.length)
-  console.log('Filtered announcements:', filteredAnnouncements.length)
-  console.log('User role:', user?.role)
 
   if (!user) return null
 
@@ -227,7 +176,10 @@ function AnnouncementsContent() {
                       <DialogDescription>Share important information with students and faculty.</DialogDescription>
                     </DialogHeader>
                     <CreateAnnouncementForm 
-                      onSubmit={handleCreateAnnouncement}
+                      onSubmit={() => {
+                        setIsCreateDialogOpen(false)
+                        fetchAnnouncements()
+                      }} 
                     />
                   </DialogContent>
                 </Dialog>
