@@ -37,101 +37,100 @@ export default function ChatPage() {
   const [message, setMessage] = useState("")
   const [messages, setMessages] = useState<Message[]>([])
   const [searchQuery, setSearchQuery] = useState("")
+  const [loading, setLoading] = useState(true)
+  const [contacts, setContacts] = useState<Contact[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Mock contacts data
-  const contacts: Contact[] = [
-    {
-      id: "1",
-      name: "Dr. Jane Smith",
-      role: "lecturer",
-      isOnline: true,
-      lastMessage: "Sure, I can help you with that assignment.",
-      lastMessageTime: "2 min ago",
-      unreadCount: 2,
-    },
-    {
-      id: "2",
-      name: "Mike Johnson",
-      role: "student",
-      isOnline: false,
-      lastMessage: "Thanks for the study materials!",
-      lastMessageTime: "1 hour ago",
-    },
-    {
-      id: "3",
-      name: "Prof. Robert Davis",
-      role: "lecturer",
-      isOnline: true,
-      lastMessage: "The deadline has been extended to Friday.",
-      lastMessageTime: "3 hours ago",
-      unreadCount: 1,
-    },
-    {
-      id: "4",
-      name: "Sarah Wilson",
-      role: "student",
-      isOnline: false,
-      lastMessage: "Can we form a study group?",
-      lastMessageTime: "1 day ago",
-    },
-  ]
+  // Fetch contacts from API
+  const fetchContacts = async () => {
+    try {
+      setLoading(true)
+      const response = await fetch('/api/users')
+      if (response.ok) {
+        const data = await response.json()
+        // Convert users to contacts format
+        const contactsList = data
+          .filter((u: any) => u._id !== user?._id) // Exclude current user
+          .map((u: any) => ({
+            id: u._id,
+            name: u.name,
+            role: u.role,
+            isOnline: Math.random() > 0.5, // Mock online status for now
+            lastMessage: "No messages yet",
+            lastMessageTime: "Never"
+          }))
+        setContacts(contactsList)
+      }
+    } catch (error) {
+      console.error('Error fetching contacts:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
-  // Mock messages data
-  const mockMessages: Message[] = [
-    {
-      id: "1",
-      senderId: "1",
-      content: "Hi! I have a question about the latest assignment.",
-      timestamp: "10:30 AM",
-      isOwn: false,
-    },
-    {
-      id: "2",
-      senderId: user?._id || "",
-      content: "Hello Dr. Smith! What would you like to know?",
-      timestamp: "10:32 AM",
-      isOwn: true,
-    },
-    {
-      id: "3",
-      senderId: "1",
-      content: "I'm having trouble understanding the requirements for question 3.",
-      timestamp: "10:33 AM",
-      isOwn: false,
-    },
-    {
-      id: "4",
-      senderId: user?._id || "",
-      content: "Sure, I can help you with that assignment. Question 3 is about implementing a binary search algorithm.",
-      timestamp: "10:35 AM",
-      isOwn: true,
-    },
-  ]
+  // Fetch messages for selected contact
+  const fetchMessages = async (contactId: string) => {
+    try {
+      const response = await fetch(`/api/messages?contactId=${contactId}`)
+      if (response.ok) {
+        const data = await response.json()
+        setMessages(data.map((msg: any) => ({
+          ...msg,
+          isOwn: msg.senderId === user?._id?.toString()
+        })))
+      }
+    } catch (error) {
+      console.error('Error fetching messages:', error)
+    }
+  }
+
+  useEffect(() => {
+    if (user) {
+      fetchContacts()
+    }
+  }, [user])
 
   useEffect(() => {
     if (selectedContact) {
-      setMessages(mockMessages)
+      fetchMessages(selectedContact.id)
     }
-  }, [selectedContact])
+  }, [selectedContact, user])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!message.trim() || !selectedContact) return
 
     const newMessage: Message = {
       id: Date.now().toString(),
-      senderId: user?._id || "",
+      senderId: user?._id?.toString() || "",
       content: message,
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       isOwn: true,
     }
 
+    // Optimistically update UI
     setMessages([...messages, newMessage])
     setMessage("")
+
+    // Send to API
+    try {
+      await fetch('/api/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          recipientId: selectedContact.id,
+          content: newMessage.content
+        })
+      })
+    } catch (error) {
+      console.error('Error sending message:', error)
+      // Could add error handling here to remove the message if sending failed
+    }
   }
 
   const filteredContacts = contacts.filter((contact) => contact.name.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -162,7 +161,22 @@ export default function ChatPage() {
               <CardContent className="p-0">
                 <ScrollArea className="h-[calc(100vh-16rem)]">
                   <div className="space-y-1 p-4">
-                    {filteredContacts.map((contact) => (
+                    {loading ? (
+                      [...Array(5)].map((_, i) => (
+                        <div key={i} className="flex items-center space-x-3 p-3">
+                          <div className="h-10 w-10 bg-gray-200 rounded-full animate-pulse"></div>
+                          <div className="flex-1 space-y-1">
+                            <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
+                            <div className="h-3 bg-gray-200 rounded animate-pulse w-3/4"></div>
+                          </div>
+                        </div>
+                      ))
+                    ) : filteredContacts.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        No contacts found
+                      </div>
+                    ) : (
+                      filteredContacts.map((contact) => (
                       <div
                         key={contact.id}
                         className={cn(
@@ -200,7 +214,8 @@ export default function ChatPage() {
                         </div>
                         <div className="text-xs text-muted-foreground">{contact.lastMessageTime}</div>
                       </div>
-                    ))}
+                      ))
+                    )}
                   </div>
                 </ScrollArea>
               </CardContent>

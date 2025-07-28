@@ -6,12 +6,71 @@ import { Header } from "@/components/layout/header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { MessageSquare, Ticket, Calendar, Users, TrendingUp, Clock, CheckCircle, AlertCircle } from "lucide-react"
+import { MessageSquare, Ticket, Calendar, Users, TrendingUp, Clock, CheckCircle, AlertCircle, Plus } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
 
 export default function DashboardPage() {
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
+  const router = useRouter()
+  const [isNavigating, setIsNavigating] = useState(false)
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/auth/login')
+    }
+  }, [user, loading, router])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    )
+  }
 
   if (!user) return null
+
+  // Quick Actions Handlers
+  const handleQuickAction = async (action: string) => {
+    setIsNavigating(true)
+    
+    try {
+      switch (action) {
+        case 'chat':
+          router.push('/chat')
+          break
+        case 'new-ticket':
+          router.push('/tickets?action=new')
+          break
+        case 'book-appointment':
+          router.push('/appointments?action=book')
+          break
+        case 'view-contacts':
+          if (user.role === 'admin') {
+            router.push('/users')
+          } else {
+            router.push('/appointments')
+          }
+          break
+        case 'analytics':
+          router.push('/dashboard/analytics')
+          break
+        case 'announcements':
+          router.push('/announcements?action=new')
+          break
+        default:
+          console.log('Unknown action:', action)
+      }
+    } catch (error) {
+      console.error('Navigation error:', error)
+    } finally {
+      setTimeout(() => setIsNavigating(false), 500)
+    }
+  }
 
   const studentStats = [
     { title: "Active Tickets", value: "3", icon: Ticket, color: "text-blue-600" },
@@ -134,23 +193,72 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-4">
-                  <Button variant="outline" className="h-20 flex flex-col bg-transparent">
+                  <Button 
+                    variant="outline" 
+                    className="h-20 flex flex-col bg-transparent hover:bg-primary/5 transition-colors"
+                    onClick={() => handleQuickAction('chat')}
+                    disabled={isNavigating}
+                  >
                     <MessageSquare className="h-6 w-6 mb-2" />
-                    Start Chat
+                    <span className="text-sm">Start Chat</span>
                   </Button>
-                  <Button variant="outline" className="h-20 flex flex-col bg-transparent">
+                  
+                  <Button 
+                    variant="outline" 
+                    className="h-20 flex flex-col bg-transparent hover:bg-primary/5 transition-colors"
+                    onClick={() => handleQuickAction('new-ticket')}
+                    disabled={isNavigating}
+                  >
                     <Ticket className="h-6 w-6 mb-2" />
-                    New Ticket
+                    <span className="text-sm">New Ticket</span>
                   </Button>
-                  <Button variant="outline" className="h-20 flex flex-col bg-transparent">
+                  
+                  <Button 
+                    variant="outline" 
+                    className="h-20 flex flex-col bg-transparent hover:bg-primary/5 transition-colors"
+                    onClick={() => handleQuickAction('book-appointment')}
+                    disabled={isNavigating}
+                  >
                     <Calendar className="h-6 w-6 mb-2" />
-                    Book Appointment
+                    <span className="text-sm">Book Appointment</span>
                   </Button>
-                  <Button variant="outline" className="h-20 flex flex-col bg-transparent">
-                    <Users className="h-6 w-6 mb-2" />
-                    View Contacts
-                  </Button>
+                  
+                  {user.role === 'admin' ? (
+                    <Button 
+                      variant="outline" 
+                      className="h-20 flex flex-col bg-transparent hover:bg-primary/5 transition-colors"
+                      onClick={() => handleQuickAction('analytics')}
+                      disabled={isNavigating}
+                    >
+                      <TrendingUp className="h-6 w-6 mb-2" />
+                      <span className="text-sm">View Analytics</span>
+                    </Button>
+                  ) : (
+                    <Button 
+                      variant="outline" 
+                      className="h-20 flex flex-col bg-transparent hover:bg-primary/5 transition-colors"
+                      onClick={() => handleQuickAction('view-contacts')}
+                      disabled={isNavigating}
+                    >
+                      <Users className="h-6 w-6 mb-2" />
+                      <span className="text-sm">View Contacts</span>
+                    </Button>
+                  )}
                 </div>
+                
+                {(user.role === 'admin' || user.role === 'lecturer') && (
+                  <div className="mt-4 pt-4 border-t">
+                    <Button 
+                      variant="outline" 
+                      className="w-full h-16 flex items-center justify-center gap-3 bg-transparent hover:bg-primary/5 transition-colors"
+                      onClick={() => handleQuickAction('announcements')}
+                      disabled={isNavigating}
+                    >
+                      <Plus className="h-5 w-5" />
+                      <span>Create Announcement</span>
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
