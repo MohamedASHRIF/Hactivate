@@ -15,62 +15,30 @@ export async function GET(request: NextRequest) {
 
     const adminAnnouncements = await db
       .collection("announcements")
-      .find(
-        decoded.role === "admin"
-          ? {
-              $or: [{ expiresAt: { $exists: false } }, { expiresAt: { $gte: new Date() } }],
-            }
-          : {
-              $and: [
-                { targetAudience: { $in: [decoded.role] } },
-                {
-                  $or: [
-                    { expiresAt: { $exists: false } },
-                    { expiresAt: { $gte: new Date() } },
-                  ],
-                },
-              ],
-            }
-      )
+      .find({
+        $or: [{ expiresAt: { $exists: false } }, { expiresAt: { $gte: new Date() } }],
+      })
       .sort({ isPinned: -1, createdAt: -1 })
       .toArray()
 
     let lecturerAnnouncements: any[] = []
-    if (decoded.role === "student") {
-      lecturerAnnouncements = await db
-        .collection("lecturer_announcements")
-        .find({
-          targetAudience: "student",
-        })
-        .sort({ isPinned: -1, createdAt: -1 })
-        .toArray()
-    }
-
     let myLecturerAnnouncements: any[] = []
-    if (decoded.role === "lecturer") {
-      myLecturerAnnouncements = await db
-        .collection("lecturer_announcements")
-        .find({
-          authorId: new ObjectId(decoded.userId),
-        })
-        .sort({ isPinned: -1, createdAt: -1 })
-        .toArray()
-    }
 
-    const allAnnouncements = [...adminAnnouncements, ...lecturerAnnouncements, ...myLecturerAnnouncements]
+    // For now, let's just use the main announcements collection
+    const allAnnouncements = [...adminAnnouncements]
 
     const announcementsWithAuthors = await Promise.all(
       allAnnouncements.map(async (announcement) => {
         const author = await db.collection("users").findOne({ _id: announcement.authorId })
         return {
           ...announcement,
-          authorName: author?.name || "Unknown",
+          authorName: author?.fullName || "Unknown",
           authorRole: author?.role || "admin",
         }
       })
     )
 
-    announcementsWithAuthors.sort((a, b) => {
+    announcementsWithAuthors.sort((a: any, b: any) => {
       if (a.isPinned && !b.isPinned) return -1
       if (!a.isPinned && b.isPinned) return 1
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
