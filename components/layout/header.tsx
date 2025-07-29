@@ -13,7 +13,7 @@ import { useRouter } from "next/navigation"
 
 export function Header() {
   const { user, logout } = useAuth()
-  const { notifications, unreadCount, markAsRead } = useNotifications()
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications()
   const router = useRouter()
 
   const handleLogout = async () => {
@@ -29,8 +29,8 @@ export function Header() {
     }
   }
 
-  const handleNotificationClick = (notification: any) => {
-    markAsRead(notification.id)
+  const handleNotificationClick = async (notification: any) => {
+    await markAsRead(notification.id)
     
     // Navigate to relevant page based on notification type
     switch (notification.type) {
@@ -72,8 +72,18 @@ export function Header() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-80">
-              <div className="px-3 py-2 border-b">
+              <div className="px-3 py-2 border-b flex items-center justify-between">
                 <p className="text-sm font-medium">Notifications</p>
+                {unreadCount > 0 && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={markAllAsRead}
+                    className="text-xs h-6 px-2"
+                  >
+                    Mark all as read
+                  </Button>
+                )}
               </div>
               {notifications.length === 0 ? (
                 <DropdownMenuItem>
