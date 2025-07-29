@@ -27,14 +27,16 @@ import { Plus, CalendarIcon, Clock, User, Video, MapPin, Edit, Trash2 } from "lu
 import { cn } from "@/lib/utils"
 
 interface Appointment {
-  id: string
+  _id?: string
   title: string
   description?: string
   lecturerName: string
   studentName: string
-  startTime: Date
-  endTime: Date
-  status: "scheduled" | "completed" | "cancelled" | "rescheduled"
+  lecturerId: string
+  studentId: string
+  startTime: string | Date
+  endTime: string | Date
+  status: "pending" | "accepted" | "rejected" | "scheduled" | "completed" | "cancelled" | "rescheduled"
   meetingLink?: string
   location?: string
   notes?: string
@@ -117,6 +119,12 @@ export default function AppointmentsContent() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
+      case "pending":
+        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+      case "accepted":
+        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+      case "rejected":
+        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
       case "scheduled":
         return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
       case "completed":
@@ -130,12 +138,14 @@ export default function AppointmentsContent() {
     }
   }
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  const formatTime = (date: string | Date) => {
+    const d = typeof date === "string" ? new Date(date) : date
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
   }
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString([], {
+  const formatDate = (date: string | Date) => {
+    const d = typeof date === "string" ? new Date(date) : date
+    return d.toLocaleDateString([], {
       weekday: "long",
       year: "numeric",
       month: "long",
@@ -143,22 +153,59 @@ export default function AppointmentsContent() {
     })
   }
 
-  const handleBookAppointment = (slotId: string, formData: any) => {
-    // Handle booking logic here
-    toast({
-      title: "Appointment Booked",
-      description: "Your appointment has been successfully booked.",
-    })
-    setIsBookingDialogOpen(false)
+  // Booking form state
+  const [bookingForm, setBookingForm] = useState({
+    lecturerId: "",
+    title: "",
+    description: "",
+    startTime: "",
+    endTime: "",
+  })
+  const [bookingLoading, setBookingLoading] = useState(false)
+
+  const handleBookAppointment = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setBookingLoading(true)
+    try {
+      const res = await fetch("/api/appointments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(bookingForm),
+      })
+      if (res.ok) {
+        toast({ title: "Appointment Requested", description: "Your appointment request has been sent." })
+        setIsBookingDialogOpen(false)
+        setBookingForm({ lecturerId: "", title: "", description: "", startTime: "", endTime: "" })
+        fetchAppointments()
+      } else {
+        const data = await res.json()
+        toast({ title: "Error", description: data.message || "Failed to request appointment", variant: "destructive" })
+      }
+    } catch (err) {
+      toast({ title: "Error", description: "Failed to request appointment", variant: "destructive" })
+    } finally {
+      setBookingLoading(false)
+    }
   }
 
-  const handleCreateTimeSlot = (formData: any) => {
-    // Handle slot creation logic here
-    toast({
-      title: "Time Slot Created",
-      description: "New time slot has been created successfully.",
-    })
-    setIsCreateSlotDialogOpen(false)
+  // Accept/reject appointment (lecturer)
+  const handleAppointmentAction = async (appointmentId: string, action: "accept" | "reject") => {
+    try {
+      const res = await fetch("/api/appointments", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appointmentId, action }),
+      })
+      if (res.ok) {
+        toast({ title: `Appointment ${action === "accept" ? "Accepted" : "Rejected"}` })
+        fetchAppointments()
+      } else {
+        const data = await res.json()
+        toast({ title: "Error", description: data.message || "Failed to update appointment", variant: "destructive" })
+      }
+    } catch (err) {
+      toast({ title: "Error", description: "Failed to update appointment", variant: "destructive" })
+    }
   }
 
   if (!user) return null
@@ -202,7 +249,49 @@ export default function AppointmentsContent() {
                     <DialogTitle>Book New Appointment</DialogTitle>
                     <DialogDescription>Choose an available time slot and provide appointment details.</DialogDescription>
                   </DialogHeader>
-                  {/* Booking form would go here */}
+                  <form onSubmit={handleBookAppointment} className="space-y-4">
+                    <div>
+                      <Label>Lecturer</Label>
+                      <Select value={bookingForm.lecturerId} onValueChange={v => setBookingForm(f => ({ ...f, lecturerId: v }))}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select Lecturer" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Array.from(
+                            availableSlots.reduce((map, slot) => {
+                              if (!map.has(slot.lecturerId)) {
+                                map.set(slot.lecturerId, slot.lecturerName)
+                              }
+                              return map
+                            }, new Map<string, string>())
+                          ).map(([id, name]) => (
+                            <SelectItem key={id} value={id}>{name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex gap-4">
+                      <div className="flex-1">
+                        <Label>Start Time</Label>
+                        <Input type="datetime-local" value={bookingForm.startTime} onChange={e => setBookingForm(f => ({ ...f, startTime: e.target.value }))} required />
+                      </div>
+                      <div className="flex-1">
+                        <Label>End Time</Label>
+                        <Input type="datetime-local" value={bookingForm.endTime} onChange={e => setBookingForm(f => ({ ...f, endTime: e.target.value }))} required />
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Title</Label>
+                      <Input value={bookingForm.title} onChange={e => setBookingForm(f => ({ ...f, title: e.target.value }))} required />
+                    </div>
+                    <div>
+                      <Label>Description</Label>
+                      <Textarea value={bookingForm.description} onChange={e => setBookingForm(f => ({ ...f, description: e.target.value }))} />
+                    </div>
+                    <div className="flex justify-end">
+                      <Button type="submit" disabled={bookingLoading}>{bookingLoading ? "Booking..." : "Book Appointment"}</Button>
+                    </div>
+                  </form>
                 </DialogContent>
               </Dialog>
             )}
@@ -228,9 +317,10 @@ export default function AppointmentsContent() {
                 <ScrollArea className="h-48">
                   <div className="space-y-2">
                     {availableSlots
-                      .filter((slot) => 
-                        slot.startTime.toDateString() === selectedDate.toDateString()
-                      )
+                      .filter((slot) => {
+                        const slotDate = typeof slot.startTime === "string" ? new Date(slot.startTime) : slot.startTime
+                        return slotDate.toDateString() === selectedDate.toDateString()
+                      })
                       .map((slot) => (
                         <div key={slot.id} className="p-3 border rounded-lg bg-green-50 dark:bg-green-900/10">
                           <div className="flex items-center justify-between">
@@ -241,7 +331,15 @@ export default function AppointmentsContent() {
                               </p>
                             </div>
                             {user?.role === "student" && (
-                              <Button size="sm" onClick={() => setIsBookingDialogOpen(true)}>
+                              <Button size="sm" onClick={() => {
+                                setBookingForm(f => ({
+                                  ...f,
+                                  lecturerId: slot.lecturerId,
+                                  startTime: typeof slot.startTime === "string" ? (slot.startTime as string).substring(0, 16) : new Date(slot.startTime as any).toISOString().substring(0, 16),
+                                  endTime: typeof slot.endTime === "string" ? (slot.endTime as string).substring(0, 16) : new Date(slot.endTime as any).toISOString().substring(0, 16),
+                                }))
+                                setIsBookingDialogOpen(true)
+                              }}>
                                 Book
                               </Button>
                             )}
@@ -280,7 +378,7 @@ export default function AppointmentsContent() {
                 ) : (
                   <div className="space-y-4">
                     {appointments.map((appointment) => (
-                      <div key={appointment.id} className="p-4 border rounded-lg">
+                      <div key={appointment._id} className="p-4 border rounded-lg">
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-2">
@@ -328,15 +426,15 @@ export default function AppointmentsContent() {
                                 <p>{appointment.notes}</p>
                               </div>
                             )}
+                            {/* Lecturer: Accept/Reject for pending appointments */}
+                            {user?.role === "lecturer" && appointment.status === "pending" && (
+                              <div className="mt-3 flex gap-2">
+                                <Button size="sm" variant="default" onClick={() => handleAppointmentAction(appointment._id as string, "accept")}>Accept</Button>
+                                <Button size="sm" variant="destructive" onClick={() => handleAppointmentAction(appointment._id as string, "reject")}>Reject</Button>
+                              </div>
+                            )}
                           </div>
-                          <div className="flex gap-2">
-                            <Button variant="outline" size="icon">
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="outline" size="icon">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
+                          {/* Optionally, edit/delete buttons for future use */}
                         </div>
                       </div>
                     ))}
