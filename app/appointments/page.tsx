@@ -3,7 +3,7 @@
 import { Suspense } from "react"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Header } from "@/components/layout/header"
-import AppointmentsContent from "./appointments-content"
+import AppointmentsContent from "@/app/appointments/appointments-content"
 
 export default function AppointmentsPage() {
   return (

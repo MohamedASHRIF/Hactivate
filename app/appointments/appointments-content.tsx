@@ -51,12 +51,22 @@ interface TimeSlot {
   isAvailable: boolean
 }
 
+
+interface LecturerOption {
+  _id: string
+  name: string
+}
+
 export default function AppointmentsContent() {
+  
+
+
   const { user } = useAuth()
   const { toast } = useToast()
   const searchParams = useSearchParams()
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([])
+  const [lecturers, setLecturers] = useState<LecturerOption[]>([])
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [isBookingDialogOpen, setIsBookingDialogOpen] = useState(false)
   const [isCreateSlotDialogOpen, setIsCreateSlotDialogOpen] = useState(false)
@@ -110,10 +120,24 @@ export default function AppointmentsContent() {
     }
   }
 
+  // Fetch lecturers for dropdown
+  const fetchLecturers = async () => {
+    try {
+      const res = await fetch("/api/users?role=lecturer")
+      if (res.ok) {
+        const data = await res.json()
+        setLecturers(data)
+      }
+    } catch (err) {
+      // ignore
+    }
+  }
+
   useEffect(() => {
     if (user) {
       fetchAppointments()
       fetchTimeSlots()
+      fetchLecturers()
     }
   }, [user])
 
@@ -257,15 +281,8 @@ export default function AppointmentsContent() {
                           <SelectValue placeholder="Select Lecturer" />
                         </SelectTrigger>
                         <SelectContent>
-                          {Array.from(
-                            availableSlots.reduce((map, slot) => {
-                              if (!map.has(slot.lecturerId)) {
-                                map.set(slot.lecturerId, slot.lecturerName)
-                              }
-                              return map
-                            }, new Map<string, string>())
-                          ).map(([id, name]) => (
-                            <SelectItem key={id} value={id}>{name}</SelectItem>
+                          {lecturers.map(l => (
+                            <SelectItem key={l._id} value={l._id}>{l.name}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
