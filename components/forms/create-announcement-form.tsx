@@ -1,18 +1,23 @@
 "use client"
 
-import type React from "react"
-import { useState } from "react"
+import React, { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 
-// Target Audience Categories (shared constants)
+// Constants
 const TARGET_AUDIENCES = {
   STUDENT: "student",
-  LECTURER: "lecturer", 
+  LECTURER: "lecturer",
   ADMIN: "admin"
 } as const
 
@@ -22,98 +27,80 @@ const TARGET_AUDIENCE_OPTIONS = [
   { value: TARGET_AUDIENCES.ADMIN, label: "Administrators", description: "Administrative staff" }
 ] as const
 
-// Announcement Categories
 const ANNOUNCEMENT_CATEGORIES = {
   GENERAL: "general",
-  ACADEMIC: "academic", 
+  ACADEMIC: "academic",
   EVENT: "event",
   URGENT: "urgent"
 } as const
 
 const ANNOUNCEMENT_CATEGORY_OPTIONS = [
-  { 
-    value: ANNOUNCEMENT_CATEGORIES.GENERAL, 
-    label: "General", 
-    description: "General information and updates"
-  },
-  { 
-    value: ANNOUNCEMENT_CATEGORIES.ACADEMIC, 
-    label: "Academic", 
-    description: "Academic-related announcements"
-  },
-  { 
-    value: ANNOUNCEMENT_CATEGORIES.EVENT, 
-    label: "Events", 
-    description: "University events and activities"
-  },
-  { 
-    value: ANNOUNCEMENT_CATEGORIES.URGENT, 
-    label: "Urgent", 
-    description: "Urgent announcements requiring immediate attention"
-  }
+  { value: ANNOUNCEMENT_CATEGORIES.GENERAL, label: "General", description: "General information and updates" },
+  { value: ANNOUNCEMENT_CATEGORIES.ACADEMIC, label: "Academic", description: "Academic-related announcements" },
+  { value: ANNOUNCEMENT_CATEGORIES.EVENT, label: "Events", description: "University events and activities" },
+  { value: ANNOUNCEMENT_CATEGORIES.URGENT, label: "Urgent", description: "Urgent announcements requiring immediate attention" }
 ] as const
 
+// Types
 type TargetAudience = typeof TARGET_AUDIENCES[keyof typeof TARGET_AUDIENCES]
 type AnnouncementCategory = typeof ANNOUNCEMENT_CATEGORIES[keyof typeof ANNOUNCEMENT_CATEGORIES]
 
 interface CreateAnnouncementFormProps {
   onSubmit: (data: any) => Promise<void>
+  userRole?: "student" | "lecturer" | "admin"
 }
 
-export default function CreateAnnouncementForm({ onSubmit }: CreateAnnouncementFormProps) {
+// Component
+export default function CreateAnnouncementForm({ onSubmit, userRole }: CreateAnnouncementFormProps) {
   const [formData, setFormData] = useState({
     title: "",
     content: "",
     category: "",
-    targetAudience: [] as string[],
+    targetAudience: userRole === "lecturer" ? ["student"] : [] as string[],
     isPinned: false,
     expiresAt: "",
   })
-  
+
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    // Validation
+
+    // Basic validation
     if (!formData.title.trim()) {
-      alert('Please enter a title')
+      alert("Please enter a title")
       return
     }
-    
+
     if (!formData.content.trim()) {
-      alert('Please enter content')
+      alert("Please enter content")
       return
     }
-    
+
     if (!formData.category) {
-      alert('Please select a category')
+      alert("Please select a category")
       return
     }
-    
+
     if (formData.targetAudience.length === 0) {
-      alert('Please select at least one target audience')
+      alert("Please select at least one target audience")
       return
     }
-    
-    console.log('Submitting form data:', formData)
-    
+
     setIsSubmitting(true)
-    
+
     try {
       await onSubmit(formData)
-      
-      // Reset form after successful submission
       setFormData({
         title: "",
         content: "",
         category: "",
-        targetAudience: [],
+        targetAudience: userRole === "lecturer" ? ["student"] : [],
         isPinned: false,
         expiresAt: "",
       })
     } catch (error) {
-      console.error('Form submission error:', error)
+      console.error("Form submission error:", error)
     } finally {
       setIsSubmitting(false)
     }
@@ -123,18 +110,19 @@ export default function CreateAnnouncementForm({ onSubmit }: CreateAnnouncementF
     if (checked) {
       setFormData({
         ...formData,
-        targetAudience: [...formData.targetAudience, audience],
+        targetAudience: [...formData.targetAudience, audience]
       })
     } else {
       setFormData({
         ...formData,
-        targetAudience: formData.targetAudience.filter((a) => a !== audience),
+        targetAudience: formData.targetAudience.filter((a) => a !== audience)
       })
     }
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Title */}
       <div className="space-y-2">
         <Label htmlFor="title">Title</Label>
         <Input
@@ -146,6 +134,7 @@ export default function CreateAnnouncementForm({ onSubmit }: CreateAnnouncementF
         />
       </div>
 
+      {/* Category */}
       <div className="space-y-2">
         <Label htmlFor="category">Category</Label>
         <Select value={formData.category} onValueChange={(value) => setFormData({ ...formData, category: value })}>
@@ -165,25 +154,35 @@ export default function CreateAnnouncementForm({ onSubmit }: CreateAnnouncementF
         </Select>
       </div>
 
+      {/* Target Audience */}
       <div className="space-y-2">
         <Label>Target Audience</Label>
         <div className="space-y-3">
-          {TARGET_AUDIENCE_OPTIONS.map((audience) => (
-            <div key={audience.value} className="flex items-center space-x-2">
-              <Checkbox
-                id={audience.value}
-                checked={formData.targetAudience.includes(audience.value)}
-                onCheckedChange={(checked) => handleAudienceChange(audience.value, checked as boolean)}
-              />
-              <Label htmlFor={audience.value} className="text-sm font-medium">
-                {audience.label}
-              </Label>
-              <span className="text-xs text-muted-foreground">- {audience.description}</span>
-            </div>
-          ))}
+          {TARGET_AUDIENCE_OPTIONS.map((audience) => {
+            if (userRole === "lecturer" && audience.value !== "student") return null
+            return (
+              <div key={audience.value} className="flex items-center space-x-2">
+                <Checkbox
+                  id={audience.value}
+                  checked={formData.targetAudience.includes(audience.value)}
+                  onCheckedChange={(checked) => handleAudienceChange(audience.value, checked as boolean)}
+                />
+                <Label htmlFor={audience.value} className="text-sm font-medium">
+                  {audience.label}
+                </Label>
+                <span className="text-xs text-muted-foreground">- {audience.description}</span>
+              </div>
+            )
+          })}
         </div>
+        {userRole === "lecturer" && (
+          <p className="text-sm text-muted-foreground mt-2">
+            Lecturers can only post announcements to students
+          </p>
+        )}
       </div>
 
+      {/* Content */}
       <div className="space-y-2">
         <Label htmlFor="content">Content</Label>
         <Textarea
@@ -196,6 +195,7 @@ export default function CreateAnnouncementForm({ onSubmit }: CreateAnnouncementF
         />
       </div>
 
+      {/* Pinned */}
       <div className="flex items-center space-x-2">
         <Checkbox
           id="pinned"
@@ -205,6 +205,7 @@ export default function CreateAnnouncementForm({ onSubmit }: CreateAnnouncementF
         <Label htmlFor="pinned">Pin this announcement</Label>
       </div>
 
+      {/* Expiration */}
       <div className="space-y-2">
         <Label htmlFor="expiresAt">Expires At (Optional)</Label>
         <Input
@@ -215,14 +216,15 @@ export default function CreateAnnouncementForm({ onSubmit }: CreateAnnouncementF
         />
       </div>
 
+      {/* Submit Button */}
       <Button type="submit" className="w-full" disabled={isSubmitting}>
         {isSubmitting ? (
           <>
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
             Creating...
           </>
         ) : (
-          'Create Announcement'
+          "Create Announcement"
         )}
       </Button>
     </form>

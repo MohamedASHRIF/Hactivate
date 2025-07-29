@@ -32,51 +32,58 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     if (!user) return
 
     try {
-      // Fetch user's read notification IDs
       const readResponse = await fetch('/api/notifications/read')
       const readData = readResponse.ok ? await readResponse.json() : { readIds: [] }
       const readIds = new Set(readData.readIds)
 
-      // Fetch recent announcements
       const announcementsResponse = await fetch('/api/announcements')
       const announcements = announcementsResponse.ok ? await announcementsResponse.json() : []
-      
-      // Fetch recent tickets (for admins/lecturers)
+
       let tickets: any[] = []
       if (user.role === 'admin' || user.role === 'lecturer') {
         const ticketsResponse = await fetch('/api/tickets')
         tickets = ticketsResponse.ok ? await ticketsResponse.json() : []
       }
 
-      // Fetch upcoming appointments
       const appointmentsResponse = await fetch('/api/appointments')
       const appointments = appointmentsResponse.ok ? await appointmentsResponse.json() : []
 
-      // Convert to notifications
       const notificationsList: Notification[] = []
 
-      // Add recent announcements (last 3)
       announcements.slice(0, 3).forEach((announcement: any) => {
         const createdAt = new Date(announcement.createdAt)
-        // Only show announcements from last 7 days
         const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+
         if (createdAt > weekAgo) {
-          const notificationId = `announcement-${announcement._id || announcement.id}`
-          notificationsList.push({
-            id: notificationId,
-            title: announcement.title,
-            message: announcement.content.slice(0, 60) + '...',
-            type: 'announcement',
-            createdAt,
-            isRead: readIds.has(notificationId)
-          })
+          let shouldShow = false
+
+          if (user.role === 'student') {
+            shouldShow = announcement.targetAudience?.includes('student')
+          } else if (user.role === 'lecturer') {
+            shouldShow = announcement.targetAudience?.includes('lecturer') && announcement.authorRole === 'admin'
+          } else if (user.role === 'admin') {
+            shouldShow = true
+          }
+
+          if (announcement.authorName === user.name) {
+            shouldShow = false
+          }
+
+          if (shouldShow) {
+            notificationsList.push({
+              id: `announcement-${announcement._id || announcement.id}`,
+              title: announcement.title,
+              message: announcement.content.slice(0, 60) + '...',
+              type: 'announcement',
+              createdAt,
+              isRead: readIds.has(`announcement-${announcement._id || announcement.id}`)
+            })
+          }
         }
       })
 
-      // Add recent tickets (last 2)
       tickets.slice(0, 2).forEach((ticket: any) => {
         const createdAt = new Date(ticket.createdAt)
-        // Only show tickets from last 3 days
         const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
         if (createdAt > threeDaysAgo) {
           const notificationId = `ticket-${ticket._id || ticket.id}`
@@ -91,10 +98,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         }
       })
 
-      // Add upcoming appointments (next 24 hours)
       const now = new Date()
       const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000)
-      
+
       appointments
         .filter((apt: any) => {
           const aptDate = new Date(apt.startTime)
@@ -113,10 +119,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           })
         })
 
-      // Sort by creation date (newest first)
       notificationsList.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
 
-      const finalNotifications = notificationsList.slice(0, 5) // Show max 5 notifications
+      const finalNotifications = notificationsList.slice(0, 5)
       const unreadNotifications = finalNotifications.filter(n => !n.isRead)
 
       setNotifications(finalNotifications)
@@ -181,7 +186,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       createdAt: new Date(),
       isRead: false
     }
-    
+
     setNotifications(prev => [newNotification, ...prev.slice(0, 4)])
     setUnreadCount(prev => prev + 1)
   }
@@ -189,7 +194,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     if (user) {
       fetchNotifications()
-      // Refresh notifications every 5 minutes
       const interval = setInterval(fetchNotifications, 5 * 60 * 1000)
       return () => clearInterval(interval)
     }
