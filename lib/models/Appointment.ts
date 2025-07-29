@@ -8,7 +8,8 @@ export interface Appointment {
   description?: string
   startTime: Date
   endTime: Date
-  status: "scheduled" | "completed" | "cancelled" | "rescheduled"
+  // status: pending (requested), accepted (teacher approved), rejected (teacher denied), completed, cancelled, rescheduled
+  status: "pending" | "accepted" | "rejected" | "scheduled" | "completed" | "cancelled" | "rescheduled"
   meetingLink?: string
   notes?: string
   createdAt: Date
