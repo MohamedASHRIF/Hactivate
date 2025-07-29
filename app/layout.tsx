@@ -6,6 +6,7 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
+import { Toaster as SonnerToaster } from "@/components/ui/sonner"
 import { AuthProvider } from "@/components/auth-provider"
 import { NotificationProvider } from "@/components/notification-provider"
 import { initMongoConnection } from "@/lib/init-mongodb"
@@ -39,6 +40,7 @@ export default async function RootLayout({
             <NotificationProvider>
               {children}
               <Toaster />
+              <SonnerToaster />
             </NotificationProvider>
           </AuthProvider>
         </ThemeProvider>

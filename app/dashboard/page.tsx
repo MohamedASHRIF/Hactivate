@@ -51,10 +51,13 @@ export default function DashboardPage() {
           break
         case 'view-contacts':
           if (user.role === 'admin') {
-            router.push('/users')
+            router.push('/admin/users')
           } else {
             router.push('/appointments')
           }
+          break
+        case 'user-management':
+          router.push('/admin/users')
           break
         case 'analytics':
           router.push('/dashboard/analytics')
@@ -248,6 +251,17 @@ export default function DashboardPage() {
                 
                 {(user.role === 'admin' || user.role === 'lecturer') && (
                   <div className="mt-4 pt-4 border-t">
+                    {user.role === 'admin' && (
+                      <Button 
+                        variant="outline" 
+                        className="w-full h-16 flex items-center justify-center gap-3 bg-transparent hover:bg-primary/5 transition-colors mb-3"
+                        onClick={() => handleQuickAction('user-management')}
+                        disabled={isNavigating}
+                      >
+                        <Users className="h-5 w-5" />
+                        <span>User Management</span>
+                      </Button>
+                    )}
                     <Button 
                       variant="outline" 
                       className="w-full h-16 flex items-center justify-center gap-3 bg-transparent hover:bg-primary/5 transition-colors"
