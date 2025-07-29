@@ -49,20 +49,42 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       // Convert to notifications
       const notificationsList: Notification[] = []
 
-      // Add recent announcements (last 3)
+      // Add recent announcements based on user role and target audience
       announcements.slice(0, 3).forEach((announcement: any) => {
         const createdAt = new Date(announcement.createdAt)
         // Only show announcements from last 7 days
         const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+        
         if (createdAt > weekAgo) {
-          notificationsList.push({
-            id: `announcement-${announcement._id || announcement.id}`,
-            title: announcement.title,
-            message: announcement.content.slice(0, 60) + '...',
-            type: 'announcement',
-            createdAt,
-            isRead: false
-          })
+          // Check if user should receive this notification
+          let shouldShow = false
+          
+          if (user.role === 'student') {
+            // Students get notifications for announcements targeting students
+            shouldShow = announcement.targetAudience && announcement.targetAudience.includes('student')
+          } else if (user.role === 'lecturer') {
+            // Lecturers get notifications for admin announcements targeting lecturers
+            shouldShow = announcement.targetAudience && announcement.targetAudience.includes('lecturer') && announcement.authorRole === 'admin'
+          } else if (user.role === 'admin') {
+            // Admins get notifications for all announcements (they can see everything)
+            shouldShow = true
+          }
+          
+          // Don't show notifications for announcements the user created themselves
+          if (announcement.authorName === user.name) {
+            shouldShow = false
+          }
+          
+          if (shouldShow) {
+            notificationsList.push({
+              id: `announcement-${announcement._id || announcement.id}`,
+              title: announcement.title,
+              message: announcement.content.slice(0, 60) + '...',
+              type: 'announcement',
+              createdAt,
+              isRead: false
+            })
+          }
         }
       })
 
@@ -106,6 +128,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
       // Sort by creation date (newest first)
       notificationsList.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+
+      console.log('🔔 Notifications for user:', {
+        role: user.role,
+        name: user.name,
+        totalAnnouncements: announcements.length,
+        notificationsCreated: notificationsList.length,
+        announcementNotifications: notificationsList.filter(n => n.type === 'announcement').length
+      })
 
       setNotifications(notificationsList.slice(0, 5)) // Show max 5 notifications
       setUnreadCount(notificationsList.length)

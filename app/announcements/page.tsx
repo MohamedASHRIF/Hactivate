@@ -23,9 +23,10 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import { useSearchParams } from "next/navigation"
-import { Plus, Search, Calendar, Megaphone, AlertTriangle, Info, BookOpen } from "lucide-react"
+import { Plus, Search, Calendar, Megaphone, AlertTriangle, Info, BookOpen, Users, Shield } from "lucide-react"
 import { cn } from "@/lib/utils"
 import CreateAnnouncementForm from "@/components/forms/create-announcement-form"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 interface Announcement {
   id: string
@@ -51,6 +52,7 @@ function AnnouncementsContent() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("all")
+  const [authorFilter, setAuthorFilter] = useState("all") // New filter for author role
   const [loading, setLoading] = useState(true)
 
   // Check for URL parameters to auto-open create dialog
@@ -66,9 +68,12 @@ function AnnouncementsContent() {
     try {
       setLoading(true)
       const response = await fetch('/api/announcements')
+      console.log('🔍 API Response status:', response.status)
       if (response.ok) {
         const data = await response.json()
-        console.log('Fetched announcements:', data) // Debug log
+        console.log('📊 Fetched announcements data:', data) // Debug log
+        console.log('📊 Data type:', typeof data)
+        console.log('📊 Data length:', Array.isArray(data) ? data.length : 'Not an array')
         setAnnouncements(data.map((announcement: any) => ({
           ...announcement,
           id: announcement._id || announcement.id, // Ensure we have an id
@@ -183,14 +188,17 @@ function AnnouncementsContent() {
     const matchesSearch = announcement.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          announcement.content.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesCategory = categoryFilter === "all" || announcement.category === categoryFilter
+    const matchesAuthor = authorFilter === "all" || announcement.authorRole === authorFilter
     
     console.log('Filtering announcement:', {
       title: announcement.title,
       matchesSearch,
-      matchesCategory
+      matchesCategory,
+      matchesAuthor,
+      authorRole: announcement.authorRole
     })
     
-    return matchesSearch && matchesCategory
+    return matchesSearch && matchesCategory && matchesAuthor
   })
 
   console.log('Total announcements:', announcements.length)
@@ -211,7 +219,14 @@ function AnnouncementsContent() {
                   <Megaphone className="h-6 w-6" />
                   Announcements
                 </CardTitle>
-                <p className="text-muted-foreground">Stay updated with the latest university news and updates</p>
+                <p className="text-muted-foreground">
+                  {user?.role === "student" 
+                    ? "Stay updated with the latest university news and updates"
+                    : user?.role === "lecturer"
+                    ? "View admin announcements and manage your course announcements"
+                    : "Manage all university announcements and communications"
+                  }
+                </p>
               </div>
               {(user?.role === "admin" || user?.role === "lecturer") && (
                 <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
@@ -228,6 +243,7 @@ function AnnouncementsContent() {
                     </DialogHeader>
                     <CreateAnnouncementForm 
                       onSubmit={handleCreateAnnouncement}
+                      userRole={user?.role}
                     />
                   </DialogContent>
                 </Dialog>
@@ -267,12 +283,123 @@ function AnnouncementsContent() {
                 </SelectContent>
               </Select>
             </div>
+            {/* Author Filter - Show for students and lecturers */}
+            {(user?.role === "student" || user?.role === "lecturer") && (
+              <div>
+                <Select value={authorFilter} onValueChange={setAuthorFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Filter by author" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Authors</SelectItem>
+                    <SelectItem value="admin">Administrators</SelectItem>
+                    <SelectItem value="lecturer">Lecturers</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Lecturer Statistics */}
+            {user?.role === "lecturer" && (
+              <div className="mt-6 p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
+                <h4 className="font-semibold text-green-900 dark:text-green-100 mb-3">Your Announcements</h4>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-green-700 dark:text-green-300">Total Posted:</span>
+                    <span className="font-medium text-green-900 dark:text-green-100">
+                      {announcements.filter(a => a.authorName === user?.name).length}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-green-700 dark:text-green-300">Pinned:</span>
+                    <span className="font-medium text-green-900 dark:text-green-100">
+                      {announcements.filter(a => a.authorName === user?.name && a.isPinned).length}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-green-700 dark:text-green-300">This Month:</span>
+                    <span className="font-medium text-green-900 dark:text-green-100">
+                      {announcements.filter(a => {
+                        const monthAgo = new Date()
+                        monthAgo.setMonth(monthAgo.getMonth() - 1)
+                        return a.authorName === user?.name && new Date(a.createdAt) > monthAgo
+                      }).length}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
         {/* Announcement List */}
         <Card className="lg:col-span-3">
           <CardContent className="p-6">
+            {/* Author Tabs for Students and Lecturers */}
+            {(user?.role === "student" || user?.role === "lecturer") && (
+              <div className="mb-6">
+                <Tabs value={authorFilter} onValueChange={setAuthorFilter} className="w-full">
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="all" className="flex items-center gap-2">
+                      <Megaphone className="h-4 w-4" />
+                      All Announcements
+                      <Badge variant="secondary" className="ml-1">
+                        {announcements.length}
+                      </Badge>
+                    </TabsTrigger>
+                    <TabsTrigger value="admin" className="flex items-center gap-2">
+                      <Shield className="h-4 w-4" />
+                      Admin Updates
+                      <Badge variant="secondary" className="ml-1">
+                        {announcements.filter(a => a.authorRole === 'admin').length}
+                      </Badge>
+                    </TabsTrigger>
+                    <TabsTrigger value="lecturer" className="flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      {user?.role === "student" ? "Lecturer Updates" : "My Announcements"}
+                      <Badge variant="secondary" className="ml-1">
+                        {announcements.filter(a => a.authorRole === 'lecturer').length}
+                      </Badge>
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+            )}
+
+            {/* Lecturer Quick Actions */}
+            {user?.role === "lecturer" && (
+              <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold text-blue-900 dark:text-blue-100">Quick Actions</h3>
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      Create announcements for your students
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        setIsCreateDialogOpen(true)
+                        setAuthorFilter("lecturer") // Switch to lecturer tab when creating
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      New Course Announcement
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setAuthorFilter("admin")}
+                    >
+                      <Shield className="h-4 w-4 mr-2" />
+                      View Admin Updates
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
             <ScrollArea className="h-full">
               {loading ? (
                 <div className="space-y-4">
@@ -293,7 +420,28 @@ function AnnouncementsContent() {
               ) : filteredAnnouncements.length === 0 ? (
                 <Card className="mb-4">
                   <CardContent className="flex items-center justify-center py-8">
-                    <p className="text-muted-foreground">No announcements found</p>
+                    <div className="text-center">
+                      <Megaphone className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <p className="text-muted-foreground mb-2">
+                        {authorFilter === "all" 
+                          ? "No announcements found" 
+                          : authorFilter === "admin"
+                          ? "No admin announcements found"
+                          : user?.role === "lecturer"
+                          ? "You haven't posted any announcements yet"
+                          : "No lecturer announcements found"
+                        }
+                      </p>
+                      {authorFilter !== "all" && (
+                        <Button 
+                          variant="outline" 
+                          onClick={() => setAuthorFilter("all")}
+                          className="mt-2"
+                        >
+                          View all announcements
+                        </Button>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               ) : (
@@ -311,14 +459,44 @@ function AnnouncementsContent() {
                       {announcement.expiresAt && (
                         <p className="text-sm text-muted-foreground">Expires at: {formatDate(announcement.expiresAt)}</p>
                       )}
-                      <div className="flex items-center gap-4 mt-4">
-                        <Avatar>
-                          <AvatarFallback>{announcement.authorName.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-semibold">{announcement.authorName}</p>
-                          <p className="text-sm text-muted-foreground">{announcement.authorRole}</p>
+                      <div className="flex items-center justify-between mt-4">
+                        <div className="flex items-center gap-4">
+                          <Avatar>
+                            <AvatarFallback>{announcement.authorName.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-semibold">{announcement.authorName}</p>
+                            <p className="text-sm text-muted-foreground capitalize">{announcement.authorRole}</p>
+                          </div>
                         </div>
+                        {/* Author type badge for students and lecturers */}
+                        {(user?.role === "student" || user?.role === "lecturer") && (
+                          <Badge 
+                            variant={announcement.authorRole === 'admin' ? 'default' : 'secondary'}
+                            className={cn(
+                              "capitalize",
+                              announcement.authorRole === 'admin' 
+                                ? "bg-blue-500 hover:bg-blue-600" 
+                                : announcement.authorName === user?.name
+                                ? "bg-purple-500 hover:bg-purple-600"
+                                : "bg-green-500 hover:bg-green-600"
+                            )}
+                          >
+                            {announcement.authorRole === 'admin' ? (
+                              <Shield className="h-3 w-3 mr-1" />
+                            ) : announcement.authorName === user?.name ? (
+                              <Users className="h-3 w-3 mr-1" />
+                            ) : (
+                              <Users className="h-3 w-3 mr-1" />
+                            )}
+                            {announcement.authorRole === 'admin' 
+                              ? 'Admin' 
+                              : announcement.authorName === user?.name 
+                                ? 'My Post' 
+                                : 'Lecturer'
+                            }
+                          </Badge>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
