@@ -11,14 +11,15 @@ import { Checkbox } from "@/components/ui/checkbox"
 
 interface CreateAnnouncementFormProps {
   onSubmit: (data: any) => void
+  userRole?: "student" | "lecturer" | "admin"
 }
 
-export default function CreateAnnouncementForm({ onSubmit }: CreateAnnouncementFormProps) {
+export default function CreateAnnouncementForm({ onSubmit, userRole }: CreateAnnouncementFormProps) {
   const [formData, setFormData] = useState({
     title: "",
     content: "",
     category: "",
-    targetAudience: [] as string[],
+    targetAudience: userRole === "lecturer" ? ["student"] : [] as string[],
     isPinned: false,
     expiresAt: "",
   })
@@ -30,7 +31,7 @@ export default function CreateAnnouncementForm({ onSubmit }: CreateAnnouncementF
       title: "",
       content: "",
       category: "",
-      targetAudience: [],
+      targetAudience: userRole === "lecturer" ? ["student"] : [],
       isPinned: false,
       expiresAt: "",
     })
@@ -89,23 +90,34 @@ export default function CreateAnnouncementForm({ onSubmit }: CreateAnnouncementF
             />
             <Label htmlFor="student">Students</Label>
           </div>
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="lecturer"
-              checked={formData.targetAudience.includes("lecturer")}
-              onCheckedChange={(checked) => handleAudienceChange("lecturer", checked as boolean)}
-            />
-            <Label htmlFor="lecturer">Lecturers</Label>
-          </div>
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="admin"
-              checked={formData.targetAudience.includes("admin")}
-              onCheckedChange={(checked) => handleAudienceChange("admin", checked as boolean)}
-            />
-            <Label htmlFor="admin">Admins</Label>
-          </div>
+          {/* Only show lecturer and admin options for admins */}
+          {userRole === "admin" && (
+            <>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="lecturer"
+                  checked={formData.targetAudience.includes("lecturer")}
+                  onCheckedChange={(checked) => handleAudienceChange("lecturer", checked as boolean)}
+                />
+                <Label htmlFor="lecturer">Lecturers</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="admin"
+                  checked={formData.targetAudience.includes("admin")}
+                  onCheckedChange={(checked) => handleAudienceChange("admin", checked as boolean)}
+                />
+                <Label htmlFor="admin">Admins</Label>
+              </div>
+            </>
+          )}
         </div>
+        {/* Show info message for lecturers */}
+        {userRole === "lecturer" && (
+          <p className="text-sm text-muted-foreground mt-2">
+            Lecturers can only post announcements to students
+          </p>
+        )}
       </div>
 
       <div className="space-y-2">
