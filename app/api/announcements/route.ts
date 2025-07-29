@@ -13,13 +13,19 @@ export async function GET(request: NextRequest) {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "fallback-secret") as any
     const db = await getDatabase()
 
-    // Get announcements for user's role
+    // Admin users can see all announcements, others see only announcements targeted at their role
+    let query: any = {
+      $or: [{ expiresAt: { $exists: false } }, { expiresAt: { $gte: new Date() } }],
+    }
+
+    if (decoded.role !== "admin") {
+      query.targetAudience = { $in: [decoded.role] }
+    }
+
+    // Get announcements
     const announcements = await db
       .collection("announcements")
-      .find({
-        targetAudience: { $in: [decoded.role] },
-        $or: [{ expiresAt: { $exists: false } }, { expiresAt: { $gte: new Date() } }],
-      })
+      .find(query)
       .sort({ isPinned: -1, createdAt: -1 })
       .toArray()
 

@@ -27,12 +27,67 @@ import { Plus, Search, Calendar, Megaphone, AlertTriangle, Info, BookOpen } from
 import { cn } from "@/lib/utils"
 import CreateAnnouncementForm from "@/components/forms/create-announcement-form"
 
+// Target Audience Categories
+const TARGET_AUDIENCES = {
+  STUDENT: "student",
+  LECTURER: "lecturer", 
+  ADMIN: "admin"
+} as const
+
+const TARGET_AUDIENCE_OPTIONS = [
+  { value: TARGET_AUDIENCES.STUDENT, label: "Students", description: "All enrolled students" },
+  { value: TARGET_AUDIENCES.LECTURER, label: "Lecturers", description: "Faculty and teaching staff" },
+  { value: TARGET_AUDIENCES.ADMIN, label: "Administrators", description: "Administrative staff" }
+] as const
+
+// Announcement Categories
+const ANNOUNCEMENT_CATEGORIES = {
+  GENERAL: "general",
+  ACADEMIC: "academic", 
+  EVENT: "event",
+  URGENT: "urgent"
+} as const
+
+const ANNOUNCEMENT_CATEGORY_OPTIONS = [
+  { 
+    value: ANNOUNCEMENT_CATEGORIES.GENERAL, 
+    label: "General", 
+    description: "General information and updates",
+    icon: "Info",
+    color: "text-gray-600 dark:text-gray-400"
+  },
+  { 
+    value: ANNOUNCEMENT_CATEGORIES.ACADEMIC, 
+    label: "Academic", 
+    description: "Academic-related announcements",
+    icon: "BookOpen",
+    color: "text-blue-600 dark:text-blue-400"
+  },
+  { 
+    value: ANNOUNCEMENT_CATEGORIES.EVENT, 
+    label: "Events", 
+    description: "University events and activities",
+    icon: "Calendar",
+    color: "text-green-600 dark:text-green-400"
+  },
+  { 
+    value: ANNOUNCEMENT_CATEGORIES.URGENT, 
+    label: "Urgent", 
+    description: "Urgent announcements requiring immediate attention",
+    icon: "AlertTriangle",
+    color: "text-red-600 dark:text-red-400"
+  }
+] as const
+
+type TargetAudience = typeof TARGET_AUDIENCES[keyof typeof TARGET_AUDIENCES]
+type AnnouncementCategory = typeof ANNOUNCEMENT_CATEGORIES[keyof typeof ANNOUNCEMENT_CATEGORIES]
+
 interface Announcement {
   id: string
   title: string
   content: string
-  category: "general" | "academic" | "event" | "urgent"
-  targetAudience: ("student" | "lecturer" | "admin")[]
+  category: AnnouncementCategory
+  targetAudience: TargetAudience[]
   authorName: string
   authorRole: string
   isPinned: boolean
@@ -64,18 +119,26 @@ function AnnouncementsContent() {
   // Fetch announcements from API
   const fetchAnnouncements = async () => {
     try {
+      console.log('Starting to fetch announcements...')
       setLoading(true)
       const response = await fetch('/api/announcements')
+      console.log('Fetch response status:', response.status)
+      
       if (response.ok) {
         const data = await response.json()
-        console.log('Fetched announcements:', data) // Debug log
-        setAnnouncements(data.map((announcement: any) => ({
+        console.log('Fetched announcements:', data)
+        console.log('Number of announcements:', data.length)
+        
+        const processedAnnouncements = data.map((announcement: any) => ({
           ...announcement,
           id: announcement._id || announcement.id, // Ensure we have an id
           createdAt: new Date(announcement.createdAt),
           updatedAt: new Date(announcement.updatedAt),
           expiresAt: announcement.expiresAt ? new Date(announcement.expiresAt) : undefined
-        })))
+        }))
+        
+        console.log('Processed announcements:', processedAnnouncements)
+        setAnnouncements(processedAnnouncements)
       } else {
         console.error('Failed to fetch announcements:', response.status, response.statusText)
         toast({
@@ -93,6 +156,7 @@ function AnnouncementsContent() {
       })
     } finally {
       setLoading(false)
+      console.log('Fetch announcements completed')
     }
   }
 
@@ -105,6 +169,8 @@ function AnnouncementsContent() {
   // Handle announcement creation
   const handleCreateAnnouncement = async (formData: any) => {
     try {
+      console.log('Creating announcement with data:', formData)
+      
       const response = await fetch('/api/announcements', {
         method: 'POST',
         headers: {
@@ -113,19 +179,31 @@ function AnnouncementsContent() {
         body: JSON.stringify(formData)
       })
 
+      console.log('API response status:', response.status)
+      
       if (response.ok) {
+        const result = await response.json()
+        console.log('Announcement created successfully:', result)
+        
         toast({
           title: "Announcement created",
           description: "Your announcement has been created successfully.",
         })
+        
         setIsCreateDialogOpen(false)
-        fetchAnnouncements() // Refresh the list
+        
+        // Refresh the list and notifications
+        console.log('Refreshing announcements and notifications...')
+        await fetchAnnouncements() // Refresh the list
         refreshNotifications() // Refresh notifications
+        
+        console.log('Refresh completed')
       } else {
         const errorData = await response.json()
+        console.error('Error response:', errorData)
         toast({
           title: "Error creating announcement",
-          description: errorData.error || "Failed to create announcement",
+          description: errorData.message || "Failed to create announcement",
           variant: "destructive"
         })
       }
@@ -139,34 +217,40 @@ function AnnouncementsContent() {
     }
   }
 
-  const getCategoryIcon = (category: string) => {
+  const getCategoryIcon = (category: AnnouncementCategory) => {
+    const categoryOption = ANNOUNCEMENT_CATEGORY_OPTIONS.find(option => option.value === category)
+    
     switch (category) {
-      case "urgent":
+      case ANNOUNCEMENT_CATEGORIES.URGENT:
         return <AlertTriangle className="h-4 w-4" />
-      case "academic":
+      case ANNOUNCEMENT_CATEGORIES.ACADEMIC:
         return <BookOpen className="h-4 w-4" />
-      case "event":
+      case ANNOUNCEMENT_CATEGORIES.EVENT:
         return <Calendar className="h-4 w-4" />
-      case "general":
+      case ANNOUNCEMENT_CATEGORIES.GENERAL:
         return <Info className="h-4 w-4" />
       default:
         return <Megaphone className="h-4 w-4" />
     }
   }
 
-  const getCategoryColor = (category: string) => {
-    switch (category) {
-      case "urgent":
-        return "text-red-600 dark:text-red-400"
-      case "academic":
-        return "text-blue-600 dark:text-blue-400"
-      case "event":
-        return "text-green-600 dark:text-green-400"
-      case "general":
-        return "text-gray-600 dark:text-gray-400"
-      default:
-        return "text-gray-600 dark:text-gray-400"
-    }
+  const getCategoryColor = (category: AnnouncementCategory) => {
+    const categoryOption = ANNOUNCEMENT_CATEGORY_OPTIONS.find(option => option.value === category)
+    return categoryOption?.color || "text-gray-600 dark:text-gray-400"
+  }
+
+  const getCategoryLabel = (category: AnnouncementCategory) => {
+    const categoryOption = ANNOUNCEMENT_CATEGORY_OPTIONS.find(option => option.value === category)
+    return categoryOption?.label || category
+  }
+
+  const getTargetAudienceLabel = (audience: TargetAudience) => {
+    const audienceOption = TARGET_AUDIENCE_OPTIONS.find(option => option.value === audience)
+    return audienceOption?.label || audience
+  }
+
+  const getTargetAudienceLabels = (audiences: TargetAudience[]) => {
+    return audiences.map(getTargetAudienceLabel).join(", ")
   }
 
   const formatDate = (date: Date) => {
@@ -183,19 +267,11 @@ function AnnouncementsContent() {
     const matchesSearch = announcement.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          announcement.content.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesCategory = categoryFilter === "all" || announcement.category === categoryFilter
+    const matchesAudience = announcement.targetAudience.includes(user?.role as TargetAudience) || 
+                           user?.role === TARGET_AUDIENCES.ADMIN
     
-    console.log('Filtering announcement:', {
-      title: announcement.title,
-      matchesSearch,
-      matchesCategory
-    })
-    
-    return matchesSearch && matchesCategory
+    return matchesSearch && matchesCategory && matchesAudience
   })
-
-  console.log('Total announcements:', announcements.length)
-  console.log('Filtered announcements:', filteredAnnouncements.length)
-  console.log('User role:', user?.role)
 
   if (!user) return null
 
@@ -260,10 +336,11 @@ function AnnouncementsContent() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Categories</SelectItem>
-                  <SelectItem value="urgent">Urgent</SelectItem>
-                  <SelectItem value="academic">Academic</SelectItem>
-                  <SelectItem value="event">Events</SelectItem>
-                  <SelectItem value="general">General</SelectItem>
+                  {ANNOUNCEMENT_CATEGORY_OPTIONS.map((category) => (
+                    <SelectItem key={category.value} value={category.value}>
+                      {category.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -300,18 +377,43 @@ function AnnouncementsContent() {
                 filteredAnnouncements.map((announcement) => (
                   <Card key={announcement.id} className="mb-4">
                     <CardHeader>
-                      <CardTitle className={cn("flex items-center gap-2", getCategoryColor(announcement.category))}>
-                        {getCategoryIcon(announcement.category)}
-                        {announcement.title}
-                      </CardTitle>
-                      {announcement.isPinned && <Badge className="bg-blue-500 text-white">Pinned</Badge>}
+                      <div className="flex items-start justify-between">
+                        <CardTitle className={cn("flex items-center gap-2", getCategoryColor(announcement.category))}>
+                          {getCategoryIcon(announcement.category)}
+                          {announcement.title}
+                        </CardTitle>
+                        <div className="flex gap-2 flex-wrap">
+                          {announcement.isPinned && (
+                            <Badge className="bg-blue-500 text-white">Pinned</Badge>
+                          )}
+                          <Badge variant="outline" className={getCategoryColor(announcement.category)}>
+                            {getCategoryLabel(announcement.category)}
+                          </Badge>
+                        </div>
+                      </div>
                     </CardHeader>
                     <CardContent>
-                      <p>{announcement.content}</p>
+                      <p className="mb-3">{announcement.content}</p>
+                      
+                      {/* Target Audience */}
+                      <div className="mb-3">
+                        <p className="text-sm font-medium text-muted-foreground mb-1">Target Audience:</p>
+                        <div className="flex gap-1 flex-wrap">
+                          {announcement.targetAudience.map((audience) => (
+                            <Badge key={audience} variant="secondary" className="text-xs">
+                              {getTargetAudienceLabel(audience)}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+
                       {announcement.expiresAt && (
-                        <p className="text-sm text-muted-foreground">Expires at: {formatDate(announcement.expiresAt)}</p>
+                        <p className="text-sm text-muted-foreground mb-3">
+                          Expires at: {formatDate(announcement.expiresAt)}
+                        </p>
                       )}
-                      <div className="flex items-center gap-4 mt-4">
+                      
+                      <div className="flex items-center gap-4">
                         <Avatar>
                           <AvatarFallback>{announcement.authorName.charAt(0)}</AvatarFallback>
                         </Avatar>
