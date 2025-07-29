@@ -23,7 +23,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import { useSearchParams } from "next/navigation"
-import { Plus, Search, Calendar, Megaphone, AlertTriangle, Info, BookOpen, Users, Shield } from "lucide-react"
+import { Plus, Search, Calendar, Megaphone, AlertTriangle, Info, BookOpen, Users, Shield, MessageSquare, TrendingUp, Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
 import CreateAnnouncementForm from "@/components/forms/create-announcement-form"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -89,6 +89,7 @@ interface Announcement {
   targetAudience: TargetAudience[]
   authorName: string
   authorRole: string
+  authorId?: string
   isPinned: boolean
   attachments?: string[]
   expiresAt?: Date
@@ -253,6 +254,7 @@ function AnnouncementsContent() {
     })
   }
 
+  // Enhanced filtering with author role support
   const filteredAnnouncements = announcements.filter((announcement) => {
     const matchesSearch = announcement.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          announcement.content.toLowerCase().includes(searchQuery.toLowerCase())
@@ -262,9 +264,29 @@ function AnnouncementsContent() {
     return matchesSearch && matchesCategory && matchesAuthor
   })
 
+  // Calculate statistics for lecturers
+  const lecturerStats = {
+    total: announcements.filter(a => a.authorId === user?._id?.toString() || a.authorId === user?._id).length,
+    pinned: announcements.filter(a => (a.authorId === user?._id?.toString() || a.authorId === user?._id) && a.isPinned).length,
+    thisMonth: announcements.filter(a => {
+      if (a.authorId !== user?._id?.toString() && a.authorId !== user?._id) return false
+      const now = new Date()
+      const announcementDate = new Date(a.createdAt)
+      return announcementDate.getMonth() === now.getMonth() && 
+             announcementDate.getFullYear() === now.getFullYear()
+    }).length
+  }
+
+  // Count announcements by author role for tabs
+  const adminAnnouncements = filteredAnnouncements.filter(a => a.authorRole === "admin")
+  const lecturerAnnouncements = filteredAnnouncements.filter(a => a.authorRole === "lecturer")
+
   console.log('Total announcements:', announcements.length)
   console.log('Filtered announcements:', filteredAnnouncements.length)
   console.log('User role:', user?.role)
+  console.log('User ID:', user?._id)
+  console.log('Sample announcement authorId:', announcements[0]?.authorId)
+  console.log('Sample announcement authorRole:', announcements[0]?.authorRole)
 
   if (!user) return null
 
@@ -280,7 +302,11 @@ function AnnouncementsContent() {
                   <Megaphone className="h-6 w-6" />
                   Announcements
                 </CardTitle>
-                <p className="text-muted-foreground">Stay updated with the latest university news and updates</p>
+                <p className="text-muted-foreground">
+                  {user?.role === "student" && "Stay updated with announcements from lecturers and administrators"}
+                  {user?.role === "lecturer" && "Manage your course announcements and view admin updates"}
+                  {user?.role === "admin" && "Manage all university announcements and communications"}
+                </p>
               </div>
               {(user?.role === "admin" || user?.role === "lecturer") && (
                 <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
@@ -297,6 +323,7 @@ function AnnouncementsContent() {
                     </DialogHeader>
                     <CreateAnnouncementForm 
                       onSubmit={handleCreateAnnouncement}
+                      userRole={user?.role}
                     />
                   </DialogContent>
                 </Dialog>
@@ -305,126 +332,393 @@ function AnnouncementsContent() {
           </CardHeader>
         </Card>
 
-        {/* Filters */}
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle>Filters</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                <Input
-                  placeholder="Search announcements..."
-                  className="pl-10"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
+        {/* Filters and Statistics for Lecturers */}
+        {user?.role === "lecturer" && (
+          <Card className="lg:col-span-1">
+            <CardHeader>
+              <CardTitle>Filters & Stats</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Search */}
+              <div>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                  <Input
+                    placeholder="Search announcements..."
+                    className="pl-10"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
               </div>
-            </div>
-            <div>
-              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filter by category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
-                  {ANNOUNCEMENT_CATEGORY_OPTIONS.map((category) => (
-                    <SelectItem key={category.value} value={category.value}>
-                      {category.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
+              
+              {/* Category Filter */}
+              <div>
+                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Filter by category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    {ANNOUNCEMENT_CATEGORY_OPTIONS.map((category) => (
+                      <SelectItem key={category.value} value={category.value}>
+                        {category.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Author Filter */}
+              <div>
+                <Select value={authorFilter} onValueChange={setAuthorFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Filter by author" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Authors</SelectItem>
+                    <SelectItem value="admin">Administrators</SelectItem>
+                    <SelectItem value="lecturer">Lecturers</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Quick Actions */}
+              <div className="space-y-3">
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  onClick={() => setIsCreateDialogOpen(true)}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  New Course Announcement
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  onClick={() => setAuthorFilter("admin")}
+                >
+                  <Shield className="mr-2 h-4 w-4" />
+                  View Admin Updates
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  onClick={async () => {
+                    try {
+                      const response = await fetch('/api/debug-announcements')
+                      const data = await response.json()
+                      console.log('🔍 Debug data:', data)
+                    } catch (error) {
+                      console.error('Debug error:', error)
+                    }
+                  }}
+                >
+                  🔍 Debug Data
+                </Button>
+              </div>
+
+              {/* Statistics */}
+              <div className="space-y-4 pt-4 border-t">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Total Posts</span>
+                  <Badge variant="secondary">{lecturerStats.total}</Badge>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Pinned</span>
+                  <Badge variant="secondary">{lecturerStats.pinned}</Badge>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">This Month</span>
+                  <Badge variant="secondary">{lecturerStats.thisMonth}</Badge>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Filters for Students and Admins */}
+        {(user?.role === "student" || user?.role === "admin") && (
+          <Card className="lg:col-span-1">
+            <CardHeader>
+              <CardTitle>Filters</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                  <Input
+                    placeholder="Search announcements..."
+                    className="pl-10"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div>
+                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Filter by category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    {ANNOUNCEMENT_CATEGORY_OPTIONS.map((category) => (
+                      <SelectItem key={category.value} value={category.value}>
+                        {category.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {/* Author Filter for Students */}
+              {user?.role === "student" && (
+                <div>
+                  <Select value={authorFilter} onValueChange={setAuthorFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Filter by author" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Authors</SelectItem>
+                      <SelectItem value="admin">Administrators</SelectItem>
+                      <SelectItem value="lecturer">Lecturers</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Announcement List */}
         <Card className="lg:col-span-3">
           <CardContent className="p-6">
-            <ScrollArea className="h-full">
-              {loading ? (
-                <div className="space-y-4">
-                  {[...Array(3)].map((_, i) => (
-                    <Card key={i} className="mb-4">
-                      <CardHeader>
-                        <div className="h-6 bg-gray-200 rounded animate-pulse"></div>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-2">
-                          <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
-                          <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4"></div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              ) : filteredAnnouncements.length === 0 ? (
-                <Card className="mb-4">
-                  <CardContent className="flex items-center justify-center py-8">
-                    <p className="text-muted-foreground">No announcements found</p>
-                  </CardContent>
-                </Card>
-              ) : (
-                filteredAnnouncements.map((announcement) => (
-                  <Card key={announcement.id} className="mb-4">
-                    <CardHeader>
-                      <div className="flex items-start justify-between">
-                        <CardTitle className={cn("flex items-center gap-2", getCategoryColor(announcement.category))}>
-                          {getCategoryIcon(announcement.category)}
-                          {announcement.title}
-                        </CardTitle>
-                        <div className="flex gap-2 flex-wrap">
-                          {announcement.isPinned && (
-                            <Badge className="bg-blue-500 text-white">Pinned</Badge>
-                          )}
-                          <Badge variant="outline" className={getCategoryColor(announcement.category)}>
-                            {getCategoryLabel(announcement.category)}
-                          </Badge>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="mb-3">{announcement.content}</p>
-                      
-                      {/* Target Audience */}
-                      <div className="mb-3">
-                        <p className="text-sm font-medium text-muted-foreground mb-1">Target Audience:</p>
-                        <div className="flex gap-1 flex-wrap">
-                          {announcement.targetAudience.map((audience) => (
-                            <Badge key={audience} variant="secondary" className="text-xs">
-                              {getTargetAudienceLabel(audience)}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
+            {/* Tabs for Students */}
+            {user?.role === "student" && (
+              <Tabs defaultValue="all" className="mb-6">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="all" className="flex items-center gap-2">
+                    All
+                    <Badge variant="secondary" className="ml-1">
+                      {filteredAnnouncements.length}
+                    </Badge>
+                  </TabsTrigger>
+                  <TabsTrigger value="admin" className="flex items-center gap-2">
+                    <Shield className="h-4 w-4" />
+                    Admin
+                    <Badge variant="secondary" className="ml-1">
+                      {adminAnnouncements.length}
+                    </Badge>
+                  </TabsTrigger>
+                  <TabsTrigger value="lecturer" className="flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Lecturer
+                    <Badge variant="secondary" className="ml-1">
+                      {lecturerAnnouncements.length}
+                    </Badge>
+                  </TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="all">
+                  <ScrollArea className="h-[calc(100vh-16rem)]">
+                    {renderAnnouncements(filteredAnnouncements)}
+                  </ScrollArea>
+                </TabsContent>
+                
+                <TabsContent value="admin">
+                  <ScrollArea className="h-[calc(100vh-16rem)]">
+                    {renderAnnouncements(adminAnnouncements)}
+                  </ScrollArea>
+                </TabsContent>
+                
+                <TabsContent value="lecturer">
+                  <ScrollArea className="h-[calc(100vh-16rem)]">
+                    {renderAnnouncements(lecturerAnnouncements)}
+                  </ScrollArea>
+                </TabsContent>
+              </Tabs>
+            )}
 
-                      {announcement.expiresAt && (
-                        <p className="text-sm text-muted-foreground mb-3">
-                          Expires at: {formatDate(announcement.expiresAt)}
-                        </p>
-                      )}
-                      
-                      <div className="flex items-center gap-4">
-                        <Avatar>
-                          <AvatarFallback>{announcement.authorName.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-semibold">{announcement.authorName}</p>
-                          <p className="text-sm text-muted-foreground">{announcement.authorRole}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
-              )}
-            </ScrollArea>
+            {/* Tabs for Lecturers */}
+            {user?.role === "lecturer" && (
+              <Tabs defaultValue="all" className="mb-6">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="all" className="flex items-center gap-2">
+                    All
+                    <Badge variant="secondary" className="ml-1">
+                      {filteredAnnouncements.length}
+                    </Badge>
+                  </TabsTrigger>
+                  <TabsTrigger value="admin" className="flex items-center gap-2">
+                    <Shield className="h-4 w-4" />
+                    Admin
+                    <Badge variant="secondary" className="ml-1">
+                      {adminAnnouncements.length}
+                    </Badge>
+                  </TabsTrigger>
+                  <TabsTrigger value="my-posts" className="flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4" />
+                    My Posts
+                    <Badge variant="secondary" className="ml-1">
+                      {announcements.filter(a => a.authorId === user?._id?.toString() || a.authorId === user?._id).length}
+                    </Badge>
+                  </TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="all">
+                  <ScrollArea className="h-[calc(100vh-16rem)]">
+                    {renderAnnouncements(filteredAnnouncements)}
+                  </ScrollArea>
+                </TabsContent>
+                
+                <TabsContent value="admin">
+                  <ScrollArea className="h-[calc(100vh-16rem)]">
+                    {renderAnnouncements(adminAnnouncements)}
+                  </ScrollArea>
+                </TabsContent>
+                
+                <TabsContent value="my-posts">
+                  <ScrollArea className="h-[calc(100vh-16rem)]">
+                    {renderAnnouncements(announcements.filter(a => a.authorId === user?._id?.toString() || a.authorId === user?._id))}
+                  </ScrollArea>
+                </TabsContent>
+              </Tabs>
+            )}
+
+            {/* Regular view for Admins */}
+            {user?.role === "admin" && (
+              <ScrollArea className="h-[calc(100vh-16rem)]">
+                {renderAnnouncements(filteredAnnouncements)}
+              </ScrollArea>
+            )}
           </CardContent>
         </Card>
       </div>
     </main>
   )
+
+  function renderAnnouncements(announcementsToRender: Announcement[]) {
+    if (loading) {
+      return (
+        <div className="space-y-4">
+          {[...Array(3)].map((_, i) => (
+            <Card key={i} className="mb-4">
+              <CardHeader>
+                <div className="h-6 bg-gray-200 rounded animate-pulse"></div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
+                  <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4"></div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )
+    }
+
+    if (announcementsToRender.length === 0) {
+      return (
+        <Card className="mb-4">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Megaphone className="h-12 w-12 text-muted-foreground mb-4" />
+            <p className="text-muted-foreground text-center">
+              {user?.role === "student" && authorFilter === "admin" && "No admin announcements found"}
+              {user?.role === "student" && authorFilter === "lecturer" && "No lecturer announcements found"}
+              {user?.role === "lecturer" && authorFilter === "admin" && "No admin announcements found"}
+              {user?.role === "lecturer" && authorFilter === "lecturer" && "You haven't posted any announcements yet"}
+              {user?.role === "lecturer" && announcementsToRender.length === 0 && announcements.filter(a => a.authorId === user?._id?.toString()).length === 0 && "You haven't posted any announcements yet"}
+              {user?.role === "admin" && "No announcements found"}
+              {(!authorFilter || authorFilter === "all") && announcementsToRender.length === 0 && "No announcements found"}
+            </p>
+            {(user?.role === "lecturer" || user?.role === "admin") && (
+              <Button 
+                variant="outline" 
+                className="mt-4"
+                onClick={() => setIsCreateDialogOpen(true)}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Create First Announcement
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )
+    }
+
+    return announcementsToRender.map((announcement) => (
+      <Card key={announcement.id} className="mb-4">
+        <CardHeader>
+          <div className="flex items-start justify-between">
+            <CardTitle className={cn("flex items-center gap-2", getCategoryColor(announcement.category))}>
+              {getCategoryIcon(announcement.category)}
+              {announcement.title}
+            </CardTitle>
+            <div className="flex gap-2 flex-wrap">
+              {announcement.isPinned && (
+                <Badge className="bg-blue-500 text-white">Pinned</Badge>
+              )}
+              <Badge variant="outline" className={getCategoryColor(announcement.category)}>
+                {getCategoryLabel(announcement.category)}
+              </Badge>
+              {/* Role-specific badges */}
+              {announcement.authorRole === "admin" && (
+                <Badge className="bg-blue-600 text-white">
+                  <Shield className="mr-1 h-3 w-3" />
+                  Admin
+                </Badge>
+              )}
+              {announcement.authorRole === "lecturer" && (
+                <Badge className="bg-green-600 text-white">
+                  <Users className="mr-1 h-3 w-3" />
+                  Lecturer
+                </Badge>
+              )}
+              {/* "My Post" badge for lecturers */}
+              {user?.role === "lecturer" && (announcement.authorId === user?._id?.toString() || announcement.authorId === user?._id) && (
+                <Badge className="bg-purple-600 text-white">
+                  <MessageSquare className="mr-1 h-3 w-3" />
+                  My Post
+                </Badge>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-3">{announcement.content}</p>
+          
+          {/* Target Audience */}
+          <div className="mb-3">
+            <p className="text-sm font-medium text-muted-foreground mb-1">Target Audience:</p>
+            <div className="flex gap-1 flex-wrap">
+              {announcement.targetAudience.map((audience) => (
+                <Badge key={audience} variant="secondary" className="text-xs">
+                  {getTargetAudienceLabel(audience)}
+                </Badge>
+              ))}
+            </div>
+          </div>
+
+          {announcement.expiresAt && (
+            <p className="text-sm text-muted-foreground mb-3">
+              <Clock className="inline mr-1 h-3 w-3" />
+              Expires at: {formatDate(announcement.expiresAt)}
+            </p>
+          )}
+          
+          <div className="flex items-center gap-4">
+            <Avatar>
+              <AvatarFallback>{announcement.authorName.charAt(0)}</AvatarFallback>
+            </Avatar>
+            <div>
+              <p className="font-semibold">{announcement.authorName}</p>
+              <p className="text-sm text-muted-foreground">{announcement.authorRole}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    ))
+  }
 }
 
 export default function AnnouncementsPage() {
