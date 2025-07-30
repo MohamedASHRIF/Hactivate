@@ -60,6 +60,9 @@ interface LecturerOption {
 }
 
 export default function AppointmentsContent() {
+  // State for booking confirmation dialog
+  const [confirmBookingDialogOpen, setConfirmBookingDialogOpen] = useState(false);
+  const [pendingBookingForm, setPendingBookingForm] = useState<typeof bookingForm | null>(null);
   // Student cancels their own appointment
   async function handleCancelAppointment(appointmentId: string) {
     setCancelLoading(true);
@@ -291,38 +294,48 @@ export default function AppointmentsContent() {
   }
   const [bookingLoading, setBookingLoading] = useState(false)
 
-  const handleBookAppointment = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setBookingLoading(true)
+  // Booking form submit handler: show confirmation dialog
+  const handleBookAppointment = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPendingBookingForm({ ...bookingForm });
+    setConfirmBookingDialogOpen(true);
+  };
+
+  // Actually perform booking after confirmation
+  const confirmBookAppointment = async () => {
+    if (!pendingBookingForm) return;
+    setBookingLoading(true);
     try {
       // Calculate endTime from startTime and duration
-      const start = new Date(bookingForm.startTime)
-      const end = new Date(start.getTime() + (Number(bookingForm.duration) || 0) * 60000)
+      const start = new Date(pendingBookingForm.startTime);
+      const end = new Date(start.getTime() + (Number(pendingBookingForm.duration) || 0) * 60000);
       const payload = {
-        ...bookingForm,
+        ...pendingBookingForm,
         endTime: end.toISOString(),
-      }
+      };
       // delete payload.duration
       const res = await fetch("/api/appointments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-      })
+      });
       if (res.ok) {
-        toast({ title: "Appointment Requested", description: "Your appointment request has been sent." })
-        setIsBookingDialogOpen(false)
-        setBookingForm({ lecturerId: "", title: "", description: "", startTime: "", duration: 30 })
-        fetchAppointments()
+        toast({ title: "Appointment Requested", description: "Your appointment request has been sent." });
+        setIsBookingDialogOpen(false);
+        setBookingForm({ lecturerId: "", title: "", description: "", startTime: "", duration: 30 });
+        fetchAppointments();
       } else {
-        const data = await res.json()
-        toast({ title: "Error", description: data.message || "Failed to request appointment", variant: "destructive" })
+        const data = await res.json();
+        toast({ title: "Error", description: data.message || "Failed to request appointment", variant: "destructive" });
       }
     } catch (err) {
-      toast({ title: "Error", description: "Failed to request appointment", variant: "destructive" })
+      toast({ title: "Error", description: "Failed to request appointment", variant: "destructive" });
     } finally {
-      setBookingLoading(false)
+      setBookingLoading(false);
+      setConfirmBookingDialogOpen(false);
+      setPendingBookingForm(null);
     }
-  }
+  };
 
   // Accept/reject appointment (lecturer)
   const handleAppointmentAction = async (appointmentId: string, action: "accept" | "reject") => {
@@ -671,6 +684,31 @@ export default function AppointmentsContent() {
             </CardContent>
           </Card>
         </div>
+        {/* Booking confirmation dialog for students */}
+        <Dialog open={confirmBookingDialogOpen} onOpenChange={setConfirmBookingDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Confirm Booking</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to book this appointment? Please confirm your details before proceeding.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="mb-4">
+              <div><b>Lecturer:</b> {pendingBookingForm?.lecturerId ? lecturers.find(l => l._id === pendingBookingForm.lecturerId)?.name : ""}</div>
+              <div><b>Title:</b> {pendingBookingForm?.title}</div>
+              <div><b>Date:</b> {pendingBookingForm?.startTime ? formatDate(pendingBookingForm.startTime) : ""}</div>
+              <div><b>Time:</b> {pendingBookingForm?.startTime ? formatTime(pendingBookingForm.startTime) : ""}</div>
+              <div><b>Duration:</b> {pendingBookingForm?.duration} minutes</div>
+              {pendingBookingForm?.description && <div><b>Description:</b> {pendingBookingForm.description}</div>}
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => { setConfirmBookingDialogOpen(false); setPendingBookingForm(null); }} disabled={bookingLoading}>Cancel</Button>
+              <Button variant="default" onClick={confirmBookAppointment} disabled={bookingLoading}>
+                {bookingLoading ? <Loader2 className="animate-spin w-4 h-4" /> : "Confirm Booking"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
         {/* Student appointment cancellation dialog */}
         <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
           <DialogContent>
