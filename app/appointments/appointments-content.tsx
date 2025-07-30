@@ -23,7 +23,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import { useSearchParams } from "next/navigation"
-import { Plus, CalendarIcon, Clock, User, Video, MapPin, Edit, Trash2 } from "lucide-react"
+import { Plus, CalendarIcon, Clock, User, Video, MapPin, Edit, Trash2, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface Appointment {
@@ -42,12 +42,13 @@ interface Appointment {
   notes?: string
 }
 
+
 interface TimeSlot {
   id: string
   lecturerId: string
   lecturerName: string
-  startTime: Date
-  endTime: Date
+  startTime: Date | string
+  endTime: Date | string
   isAvailable: boolean
 }
 
@@ -58,6 +59,32 @@ interface LecturerOption {
 }
 
 export default function AppointmentsContent() {
+
+  // State and handler for slot deletion (lecturer)
+  const [slotDeleteLoading, setSlotDeleteLoading] = useState<string | null>(null)
+  const [slotToDelete, setSlotToDelete] = useState<string | null>(null)
+  const handleDeleteSlot = async (slotId: string) => {
+    setSlotDeleteLoading(slotId)
+    try {
+      const res = await fetch("/api/timeslots", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slotId }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        toast({ title: "Slot deleted", description: data.message })
+        fetchTimeSlots()
+      } else {
+        toast({ title: "Error", description: data.message || "Failed to delete slot", variant: "destructive" })
+      }
+    } catch (err) {
+      toast({ title: "Error", description: "Failed to delete slot", variant: "destructive" })
+    } finally {
+      setSlotDeleteLoading(null)
+      setSlotToDelete(null)
+    }
+  }
   
 
 
@@ -178,12 +205,20 @@ export default function AppointmentsContent() {
   }
 
   // Booking form state
-  const [bookingForm, setBookingForm] = useState({
+  const [bookingForm, setBookingForm] = useState<{
+    lecturerId: string;
+    title: string;
+    description: string;
+    startTime: string;
+    duration?: number;
+    slotId?: string;
+  }>({
     lecturerId: "",
     title: "",
     description: "",
     startTime: "",
-    duration: 30, // default duration in minutes
+    duration: 30,
+    slotId: "",
   })
 
   // State for creating a time slot (lecturer)
@@ -238,7 +273,7 @@ export default function AppointmentsContent() {
         ...bookingForm,
         endTime: end.toISOString(),
       }
-      delete payload.duration
+      // delete payload.duration
       const res = await fetch("/api/appointments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -470,26 +505,48 @@ export default function AppointmentsContent() {
                   <h3 className="font-semibold mb-4">Available Slots</h3>
                   <ScrollArea className="h-48">
                     <div className="space-y-2">
-                      {availableSlots
+                      {loading ? (
+                        [...Array(3)].map((_, i) => (
+                          <div key={i} className="p-3 border rounded-lg bg-gray-100 dark:bg-gray-800 animate-pulse h-16" />
+                        ))
+                      ) : availableSlots
                         .filter((slot) => {
                           const slotDate = typeof slot.startTime === "string" ? new Date(slot.startTime) : slot.startTime;
                           return slotDate.toDateString() === selectedDate.toDateString() && slot.lecturerId === String(user._id);
                         })
                         .map((slot) => (
-                          <div key={slot.id} className="p-3 border rounded-lg bg-green-50 dark:bg-green-900/10">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="font-medium">{slot.lecturerName}</p>
-                                <p className="text-sm text-muted-foreground">
-                                  {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
-                                </p>
-                              </div>
+                          <div key={slot.id} className="p-3 border rounded-lg bg-green-50 dark:bg-green-900/10 flex items-center justify-between">
+                            <div>
+                              <p className="font-medium">{slot.lecturerName}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
+                              </p>
                             </div>
+                            <Button size="icon" variant="ghost" className="ml-2" onClick={() => setSlotToDelete(slot.id)} disabled={slotDeleteLoading === slot.id}>
+                              {slotDeleteLoading === slot.id ? <Loader2 className="animate-spin w-4 h-4" /> : <Trash2 className="w-4 h-4" />}
+                            </Button>
                           </div>
                         ))}
                     </div>
                   </ScrollArea>
                 </div>
+                {/* Delete confirmation dialog */}
+                {slotToDelete && (
+                  <Dialog open={!!slotToDelete} onOpenChange={() => setSlotToDelete(null)}>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Delete Slot?</DialogTitle>
+                        <DialogDescription>Are you sure you want to delete this slot? This action cannot be undone.</DialogDescription>
+                      </DialogHeader>
+                      <div className="flex justify-end gap-2 mt-4">
+                        <Button variant="outline" onClick={() => setSlotToDelete(null)}>Cancel</Button>
+                        <Button variant="destructive" onClick={() => handleDeleteSlot(slotToDelete!)} disabled={slotDeleteLoading === slotToDelete}>
+                          {slotDeleteLoading === slotToDelete ? <Loader2 className="animate-spin w-4 h-4" /> : "Delete"}
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                )}
               </CardContent>
             </Card>
           )}
