@@ -87,6 +87,8 @@ interface Announcement {
   content: string
   category: AnnouncementCategory
   targetAudience: TargetAudience[]
+  targetDepartments?: string[]
+  isDepartmentSpecific?: boolean
   authorName: string
   authorRole: string
   authorId?: string
@@ -118,15 +120,11 @@ function AnnouncementsContent() {
 
   const fetchAnnouncements = async () => {
     try {
-      console.log('Starting to fetch announcements...')
       setLoading(true)
       const response = await fetch('/api/announcements')
-      console.log('Fetch response status:', response.status)
 
       if (response.ok) {
         const data = await response.json()
-        console.log('Fetched announcements:', data)
-        console.log('Number of announcements:', data.length)
 
         const processedAnnouncements = data.map((announcement: any) => ({
           ...announcement,
@@ -136,7 +134,6 @@ function AnnouncementsContent() {
           expiresAt: announcement.expiresAt ? new Date(announcement.expiresAt) : undefined
         }))
 
-        console.log('Processed announcements:', processedAnnouncements)
         setAnnouncements(processedAnnouncements)
       } else {
         console.error('Failed to fetch announcements:', response.status, response.statusText)
@@ -155,7 +152,6 @@ function AnnouncementsContent() {
       })
     } finally {
       setLoading(false)
-      console.log('Fetch announcements completed')
     }
   }
 
@@ -167,7 +163,6 @@ function AnnouncementsContent() {
 
   const handleCreateAnnouncement = async (formData: any) => {
     try {
-      console.log('Creating announcement with data:', formData)
       const response = await fetch('/api/announcements', {
         method: 'POST',
         headers: {
@@ -176,11 +171,8 @@ function AnnouncementsContent() {
         body: JSON.stringify(formData)
       })
 
-      console.log('API response status:', response.status)
-
       if (response.ok) {
         const result = await response.json()
-        console.log('Announcement created successfully:', result)
 
         toast({
           title: "Announcement created",
@@ -190,7 +182,6 @@ function AnnouncementsContent() {
         setIsCreateDialogOpen(false)
         await fetchAnnouncements()
         refreshNotifications()
-        console.log('Refresh completed')
       } else {
         const errorData = await response.json()
         console.error('Error response:', errorData)
@@ -281,13 +272,6 @@ function AnnouncementsContent() {
   const adminAnnouncements = filteredAnnouncements.filter(a => a.authorRole === "admin")
   const lecturerAnnouncements = filteredAnnouncements.filter(a => a.authorRole === "lecturer")
 
-  console.log('Total announcements:', announcements.length)
-  console.log('Filtered announcements:', filteredAnnouncements.length)
-  console.log('User role:', user?.role)
-  console.log('User ID:', user?._id)
-  console.log('Sample announcement authorId:', announcements[0]?.authorId)
-  console.log('Sample announcement authorRole:', announcements[0]?.authorRole)
-
   if (!user) return null
 
   return (
@@ -324,6 +308,7 @@ function AnnouncementsContent() {
                     <CreateAnnouncementForm 
                       onSubmit={handleCreateAnnouncement}
                       userRole={user?.role}
+                      userDepartment={user?.department}
                     />
                   </DialogContent>
                 </Dialog>
@@ -383,16 +368,8 @@ function AnnouncementsContent() {
                 </Select>
               </div>
 
-              {/* Quick Actions */}
+              {/* Quick Actions
               <div className="space-y-3">
-                <Button 
-                  variant="outline" 
-                  className="w-full justify-start"
-                  onClick={() => setIsCreateDialogOpen(true)}
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  New Course Announcement
-                </Button>
                 <Button 
                   variant="outline" 
                   className="w-full justify-start"
@@ -401,22 +378,7 @@ function AnnouncementsContent() {
                   <Shield className="mr-2 h-4 w-4" />
                   View Admin Updates
                 </Button>
-                <Button 
-                  variant="outline" 
-                  className="w-full justify-start"
-                  onClick={async () => {
-                    try {
-                      const response = await fetch('/api/debug-announcements')
-                      const data = await response.json()
-                      console.log('🔍 Debug data:', data)
-                    } catch (error) {
-                      console.error('Debug error:', error)
-                    }
-                  }}
-                >
-                  🔍 Debug Data
-                </Button>
-              </div>
+              </div> */}
 
               {/* Statistics */}
               <div className="space-y-4 pt-4 border-t">
@@ -681,41 +643,47 @@ function AnnouncementsContent() {
                   My Post
                 </Badge>
               )}
+              {/* Department-specific badge */}
+              {announcement.isDepartmentSpecific && (
+                <Badge className="bg-orange-600 text-white">
+                  <Users className="mr-1 h-3 w-3" />
+                  {announcement.targetDepartments && announcement.targetDepartments.length > 0 
+                    ? "Department Specific" 
+                    : "All Departments"
+                  }
+                </Badge>
+              )}
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <p className="mb-3">{announcement.content}</p>
-          
-          {/* Target Audience */}
-          <div className="mb-3">
-            <p className="text-sm font-medium text-muted-foreground mb-1">Target Audience:</p>
-            <div className="flex gap-1 flex-wrap">
-              {announcement.targetAudience.map((audience) => (
-                <Badge key={audience} variant="secondary" className="text-xs">
-                  {getTargetAudienceLabel(audience)}
-                </Badge>
-              ))}
-            </div>
-          </div>
-
-          {announcement.expiresAt && (
-            <p className="text-sm text-muted-foreground mb-3">
-              <Clock className="inline mr-1 h-3 w-3" />
-              Expires at: {formatDate(announcement.expiresAt)}
-            </p>
-          )}
-          
-          <div className="flex items-center gap-4">
-            <Avatar>
-              <AvatarFallback>{announcement.authorName.charAt(0)}</AvatarFallback>
-            </Avatar>
-            <div>
-              <p className="font-semibold">{announcement.authorName}</p>
-              <p className="text-sm text-muted-foreground">{announcement.authorRole}</p>
-            </div>
-          </div>
-        </CardContent>
+                            <CardContent>
+                      <p className="mb-4">{announcement.content}</p>
+                      
+                      {announcement.expiresAt && (
+                        <p className="text-sm text-muted-foreground mb-3">
+                          <Clock className="inline mr-1 h-3 w-3" />
+                          Expires at: {formatDate(announcement.expiresAt)}
+                        </p>
+                      )}
+                      
+                      <div className="flex items-center gap-4">
+                        <Avatar>
+                          <AvatarFallback>{announcement.authorName.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-semibold">{announcement.authorName}</p>
+                          <p className="text-sm text-muted-foreground">{announcement.authorRole}</p>
+                                                     {announcement.isDepartmentSpecific && (
+                             <p className="text-xs text-muted-foreground">
+                               {announcement.targetDepartments && announcement.targetDepartments.length > 0
+                                 ? `For: ${announcement.targetDepartments.join(", ")}`
+                                 : "For: All Departments"
+                               }
+                             </p>
+                           )}
+                        </div>
+                      </div>
+                    </CardContent>
       </Card>
     ))
   }
