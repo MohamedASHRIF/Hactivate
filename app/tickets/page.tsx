@@ -24,6 +24,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
+import { useSearchParams } from "next/navigation"
 import {
   Plus,
   Search,
@@ -38,8 +39,12 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
+// Force dynamic rendering for this page
+export const dynamic = 'force-dynamic'
+
 interface Ticket {
-  id: string
+  _id?: string
+  id?: string
   title: string
   description: string
   category: "academic" | "technical" | "administrative" | "other"
@@ -50,6 +55,18 @@ interface Ticket {
   createdAt: string
   updatedAt: string
   replies: TicketReply[]
+  // Enhanced fields
+  subcategory?: string
+  contactMethod?: string
+  urgencyReason?: string
+  expectedResolution?: string
+  additionalDetails?: string
+  attachments?: Array<{
+    name: string
+    size: number
+    type: string
+    url: string
+  }>
 }
 
 interface TicketReply {
@@ -63,6 +80,7 @@ interface TicketReply {
 export default function TicketsPage() {
   const { user } = useAuth()
   const { toast } = useToast()
+  const searchParams = useSearchParams()
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
@@ -70,69 +88,49 @@ export default function TicketsPage() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [replyMessage, setReplyMessage] = useState("")
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
 
-  // Mock tickets data
-  const mockTickets: Ticket[] = [
-    {
-      id: "1",
-      title: "Cannot access course materials",
-      description: "I am unable to download the lecture slides from the portal. The download button is not working.",
-      category: "technical",
-      priority: "medium",
-      status: "open",
-      studentName: "John Student",
-      createdAt: "2024-01-15T10:30:00Z",
-      updatedAt: "2024-01-15T10:30:00Z",
-      replies: [],
-    },
-    {
-      id: "2",
-      title: "Question about assignment deadline",
-      description: "Can the deadline for Assignment 2 be extended? I have been sick and unable to complete it on time.",
-      category: "academic",
-      priority: "low",
-      status: "in-progress",
-      studentName: "Jane Doe",
-      assignedTo: "Dr. Smith",
-      createdAt: "2024-01-14T14:20:00Z",
-      updatedAt: "2024-01-15T09:15:00Z",
-      replies: [
-        {
-          id: "1",
-          userId: "lecturer1",
-          userName: "Dr. Smith",
-          message:
-            "I understand your situation. Please provide a medical certificate and I will consider the extension.",
-          createdAt: "2024-01-15T09:15:00Z",
-        },
-      ],
-    },
-    {
-      id: "3",
-      title: "Library access card not working",
-      description: "My student ID card is not working at the library turnstiles.",
-      category: "administrative",
-      priority: "high",
-      status: "resolved",
-      studentName: "Mike Johnson",
-      assignedTo: "Admin User",
-      createdAt: "2024-01-13T16:45:00Z",
-      updatedAt: "2024-01-14T11:30:00Z",
-      replies: [
-        {
-          id: "2",
-          userId: "admin1",
-          userName: "Admin User",
-          message: "Your card has been reactivated. Please try again.",
-          createdAt: "2024-01-14T11:30:00Z",
-        },
-      ],
-    },
-  ]
+  // Check for URL parameters to auto-open create dialog
+  useEffect(() => {
+    const action = searchParams.get('action')
+    if (action === 'new') {
+      setIsCreateDialogOpen(true)
+    }
+  }, [searchParams])
+
+  // Fetch tickets from API
+  const fetchTickets = async () => {
+    try {
+      setLoading(true)
+      const response = await fetch('/api/tickets')
+      if (response.ok) {
+        const data = await response.json()
+        setTickets(data)
+      } else {
+        toast({
+          title: "Error fetching tickets",
+          description: "Failed to load tickets",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error('Error fetching tickets:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load tickets",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    setTickets(mockTickets)
-  }, [])
+    if (user) {
+      fetchTickets()
+    }
+  }, [user])
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -189,26 +187,56 @@ export default function TicketsPage() {
     return matchesSearch && matchesStatus && matchesCategory
   })
 
-  const handleCreateTicket = (formData: any) => {
-    const newTicket: Ticket = {
-      id: Date.now().toString(),
-      title: formData.title,
-      description: formData.description,
-      category: formData.category,
-      priority: formData.priority,
-      status: "open",
-      studentName: user?.name || "Unknown",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      replies: [],
-    }
+  const handleCreateTicket = async (formData: any) => {
+    try {
+      setSubmitting(true)
+      
+      const ticketData = {
+        title: formData.title,
+        description: formData.description,
+        category: formData.category,
+        priority: formData.priority,
+        subcategory: formData.subcategory,
+        contactMethod: formData.contactMethod,
+        urgencyReason: formData.urgencyReason,
+        expectedResolution: formData.expectedResolution,
+        additionalDetails: formData.additionalDetails,
+        attachments: formData.attachments || [],
+      }
 
-    setTickets([newTicket, ...tickets])
-    setIsCreateDialogOpen(false)
-    toast({
-      title: "Ticket created",
-      description: "Your support ticket has been submitted successfully.",
-    })
+      const response = await fetch('/api/tickets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(ticketData),
+      })
+
+      if (response.ok) {
+        setIsCreateDialogOpen(false)
+        await fetchTickets() // Refresh tickets list
+        toast({
+          title: "Ticket created successfully",
+          description: "Your support ticket has been submitted and will be reviewed shortly.",
+        })
+      } else {
+        const error = await response.json()
+        toast({
+          title: "Error creating ticket",
+          description: error.message || "Failed to create ticket",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error('Error creating ticket:', error)
+      toast({
+        title: "Error creating ticket",
+        description: "Please try again later",
+        variant: "destructive"
+      })
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const handleReply = () => {
@@ -216,7 +244,7 @@ export default function TicketsPage() {
 
     const newReply: TicketReply = {
       id: Date.now().toString(),
-      userId: user?._id || "",
+      userId: user?._id?.toString() || "",
       userName: user?.name || "Unknown",
       message: replyMessage,
       createdAt: new Date().toISOString(),
@@ -259,10 +287,12 @@ export default function TicketsPage() {
                     New Ticket
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-md">
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>Create Support Ticket</DialogTitle>
-                    <DialogDescription>Describe your issue and we'll help you resolve it.</DialogDescription>
+                    <DialogDescription>
+                      Provide detailed information about your issue to help us assist you better.
+                    </DialogDescription>
                   </DialogHeader>
                   <CreateTicketForm onSubmit={handleCreateTicket} />
                 </DialogContent>
@@ -319,9 +349,23 @@ export default function TicketsPage() {
                 <CardContent className="p-0">
                   <ScrollArea className="h-[calc(100vh-20rem)]">
                     <div className="space-y-2 p-4">
-                      {filteredTickets.map((ticket) => (
-                        <div
-                          key={ticket.id}
+                      {loading ? (
+                        <div className="flex items-center justify-center py-8">
+                          <Clock className="h-6 w-6 animate-spin mr-2" />
+                          <span>Loading tickets...</span>
+                        </div>
+                      ) : filteredTickets.length === 0 ? (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                          <p>No tickets found</p>
+                          {user?.role === "student" && (
+                            <p className="text-sm mt-2">Create your first support ticket to get help</p>
+                          )}
+                        </div>
+                      ) : (
+                        filteredTickets.map((ticket) => (
+                          <div
+                            key={ticket._id || ticket.id}
                           className={cn(
                             "p-4 rounded-lg border cursor-pointer transition-colors",
                             selectedTicket?.id === ticket.id ? "bg-primary/10 border-primary" : "hover:bg-muted",
@@ -345,7 +389,8 @@ export default function TicketsPage() {
                             </span>
                           </div>
                         </div>
-                      ))}
+                        ))
+                      )}
                     </div>
                   </ScrollArea>
                 </CardContent>
@@ -377,14 +422,15 @@ export default function TicketsPage() {
                     </div>
                     <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                       <span>Category: {selectedTicket.category}</span>
-                      {selectedTicket.assignedTo && <span>Assigned to: {selectedTicket.assignedTo}</span>}
+                      {selectedTicket.subcategory && <span>• {selectedTicket.subcategory}</span>}
+                      {selectedTicket.assignedTo && <span>• Assigned to: {selectedTicket.assignedTo}</span>}
                     </div>
                   </CardHeader>
                   <CardContent className="flex flex-col h-full p-0">
                     <ScrollArea className="flex-1 p-6">
                       <div className="space-y-6">
                         {/* Original Message */}
-                        <div className="bg-muted/50 rounded-lg p-4">
+                        <div className="bg-muted/50 rounded-lg p-4 space-y-4">
                           <div className="flex items-center space-x-2 mb-2">
                             <Avatar className="h-6 w-6">
                               <AvatarFallback className="text-xs">
@@ -399,7 +445,68 @@ export default function TicketsPage() {
                               {new Date(selectedTicket.createdAt).toLocaleString()}
                             </span>
                           </div>
-                          <p className="text-sm">{selectedTicket.description}</p>
+                          
+                          {/* Main Description */}
+                          <div>
+                            <h4 className="text-sm font-medium mb-2">Description:</h4>
+                            <p className="text-sm">{selectedTicket.description}</p>
+                          </div>
+                          
+                          {/* Additional Information Grid */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
+                            {selectedTicket.subcategory && (
+                              <div>
+                                <h5 className="text-xs font-medium text-muted-foreground mb-1">Subcategory:</h5>
+                                <p className="text-sm">{selectedTicket.subcategory}</p>
+                              </div>
+                            )}
+                            
+                            {selectedTicket.contactMethod && (
+                              <div>
+                                <h5 className="text-xs font-medium text-muted-foreground mb-1">Preferred Contact:</h5>
+                                <p className="text-sm capitalize">{selectedTicket.contactMethod}</p>
+                              </div>
+                            )}
+                            
+                            {selectedTicket.urgencyReason && (
+                              <div className="md:col-span-2">
+                                <h5 className="text-xs font-medium text-muted-foreground mb-1">Urgency Reason:</h5>
+                                <p className="text-sm">{selectedTicket.urgencyReason}</p>
+                              </div>
+                            )}
+                            
+                            {selectedTicket.expectedResolution && (
+                              <div className="md:col-span-2">
+                                <h5 className="text-xs font-medium text-muted-foreground mb-1">Expected Resolution:</h5>
+                                <p className="text-sm">{selectedTicket.expectedResolution}</p>
+                              </div>
+                            )}
+                            
+                            {selectedTicket.additionalDetails && (
+                              <div className="md:col-span-2">
+                                <h5 className="text-xs font-medium text-muted-foreground mb-1">Additional Details:</h5>
+                                <p className="text-sm">{selectedTicket.additionalDetails}</p>
+                              </div>
+                            )}
+                            
+                            {/* Attachments */}
+                            {selectedTicket.attachments && selectedTicket.attachments.length > 0 && (
+                              <div className="md:col-span-2">
+                                <h5 className="text-xs font-medium text-muted-foreground mb-2">Attachments:</h5>
+                                <div className="flex flex-wrap gap-2">
+                                  {selectedTicket.attachments.map((attachment, index) => (
+                                    <div key={index} className="flex items-center gap-2 bg-background border rounded px-3 py-2">
+                                      <Paperclip className="h-3 w-3" />
+                                      <span className="text-xs">{attachment.name}</span>
+                                      <span className="text-xs text-muted-foreground">
+                                        ({(attachment.size / 1024).toFixed(1)}KB)
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </div>
 
                         {/* Replies */}
@@ -477,67 +584,383 @@ function CreateTicketForm({ onSubmit }: { onSubmit: (data: any) => void }) {
     description: "",
     category: "",
     priority: "medium",
+    subcategory: "",
+    contactMethod: "email",
+    urgencyReason: "",
+    expectedResolution: "",
+    additionalDetails: "",
   })
+  const [attachments, setAttachments] = useState<File[]>([])
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const { toast } = useToast()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const categoryOptions = {
+    academic: {
+      label: "Academic",
+      subcategories: [
+        "Course Materials",
+        "Assignment Issues",
+        "Grade Inquiry",
+        "Exam Schedule",
+        "Curriculum Questions",
+        "Academic Advising"
+      ]
+    },
+    technical: {
+      label: "Technical",
+      subcategories: [
+        "Login Problems",
+        "Platform Access",
+        "File Upload Issues",
+        "System Errors",
+        "Mobile App Issues",
+        "Browser Compatibility"
+      ]
+    },
+    administrative: {
+      label: "Administrative",
+      subcategories: [
+        "Enrollment Issues",
+        "Fee Payment",
+        "Document Requests",
+        "Schedule Changes",
+        "ID Card Issues",
+        "Contact Information"
+      ]
+    },
+    other: {
+      label: "Other",
+      subcategories: [
+        "General Inquiry",
+        "Feedback",
+        "Feature Request",
+        "Complaint",
+        "Suggestion"
+      ]
+    }
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const newFiles = Array.from(e.target.files)
+      const validFiles = newFiles.filter(file => {
+        const maxSize = 5 * 1024 * 1024 // 5MB
+        const allowedTypes = ['image/', 'application/pdf', 'text/', '.doc', '.docx']
+        
+        if (file.size > maxSize) {
+          toast({
+            title: "File too large",
+            description: `${file.name} is larger than 5MB`,
+            variant: "destructive"
+          })
+          return false
+        }
+        
+        const isAllowed = allowedTypes.some(type => 
+          file.type.startsWith(type) || file.name.toLowerCase().endsWith(type)
+        )
+        
+        if (!isAllowed) {
+          toast({
+            title: "Invalid file type",
+            description: `${file.name} is not a supported file type`,
+            variant: "destructive"
+          })
+          return false
+        }
+        
+        return true
+      })
+      
+      setAttachments(prev => [...prev, ...validFiles])
+    }
+  }
+
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    onSubmit(formData)
-    setFormData({ title: "", description: "", category: "", priority: "medium" })
+    setIsSubmitting(true)
+
+    try {
+      // Validate required fields
+      if (!formData.title.trim() || !formData.description.trim() || !formData.category) {
+        toast({
+          title: "Missing required fields",
+          description: "Please fill in all required fields",
+          variant: "destructive"
+        })
+        return
+      }
+
+      // Create ticket data with attachments
+      const ticketData = {
+        ...formData,
+        attachments: attachments.map(file => ({
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          // In a real implementation, you would upload files to a server
+          url: URL.createObjectURL(file)
+        })),
+        createdAt: new Date().toISOString(),
+        status: "open"
+      }
+
+      await onSubmit(ticketData)
+      
+      // Reset form
+      setFormData({
+        title: "",
+        description: "",
+        category: "",
+        priority: "medium",
+        subcategory: "",
+        contactMethod: "email",
+        urgencyReason: "",
+        expectedResolution: "",
+        additionalDetails: "",
+      })
+      setAttachments([])
+      
+      toast({
+        title: "Ticket created successfully",
+        description: "Your support ticket has been submitted and will be reviewed shortly.",
+      })
+    } catch (error) {
+      toast({
+        title: "Error creating ticket",
+        description: "Please try again later",
+        variant: "destructive"
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Title */}
       <div className="space-y-2">
-        <Label htmlFor="title">Title</Label>
+        <Label htmlFor="title">Title *</Label>
         <Input
           id="title"
           value={formData.title}
           onChange={(e) => setFormData({ ...formData, title: e.target.value })}
           placeholder="Brief description of your issue"
           required
+          maxLength={100}
         />
+        <p className="text-xs text-muted-foreground">
+          {formData.title.length}/100 characters
+        </p>
       </div>
+
+      {/* Category */}
       <div className="space-y-2">
-        <Label htmlFor="category">Category</Label>
-        <Select value={formData.category} onValueChange={(value) => setFormData({ ...formData, category: value })}>
+        <Label htmlFor="category">Category *</Label>
+        <Select 
+          value={formData.category} 
+          onValueChange={(value) => setFormData({ ...formData, category: value, subcategory: "" })}
+        >
           <SelectTrigger>
             <SelectValue placeholder="Select category" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="academic">Academic</SelectItem>
-            <SelectItem value="technical">Technical</SelectItem>
-            <SelectItem value="administrative">Administrative</SelectItem>
-            <SelectItem value="other">Other</SelectItem>
+            {Object.entries(categoryOptions).map(([key, option]) => (
+              <SelectItem key={key} value={key}>{option.label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
+
+      {/* Subcategory */}
+      {formData.category && (
+        <div className="space-y-2">
+          <Label htmlFor="subcategory">Subcategory</Label>
+          <Select 
+            value={formData.subcategory} 
+            onValueChange={(value) => setFormData({ ...formData, subcategory: value })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select subcategory" />
+            </SelectTrigger>
+            <SelectContent>
+              {categoryOptions[formData.category as keyof typeof categoryOptions]?.subcategories.map((sub) => (
+                <SelectItem key={sub} value={sub}>{sub}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {/* Priority */}
       <div className="space-y-2">
-        <Label htmlFor="priority">Priority</Label>
+        <Label htmlFor="priority">Priority *</Label>
         <Select value={formData.priority} onValueChange={(value) => setFormData({ ...formData, priority: value })}>
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="low">Low</SelectItem>
-            <SelectItem value="medium">Medium</SelectItem>
-            <SelectItem value="high">High</SelectItem>
-            <SelectItem value="urgent">Urgent</SelectItem>
+            <SelectItem value="low">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                Low - General inquiry or minor issue
+              </div>
+            </SelectItem>
+            <SelectItem value="medium">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
+                Medium - Standard request
+              </div>
+            </SelectItem>
+            <SelectItem value="high">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-orange-500"></div>
+                High - Important issue affecting work
+              </div>
+            </SelectItem>
+            <SelectItem value="urgent">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                Urgent - Critical issue needing immediate attention
+              </div>
+            </SelectItem>
           </SelectContent>
         </Select>
       </div>
+
+      {/* Urgency Reason for High/Urgent tickets */}
+      {(formData.priority === "high" || formData.priority === "urgent") && (
+        <div className="space-y-2">
+          <Label htmlFor="urgencyReason">Reason for urgency *</Label>
+          <Textarea
+            id="urgencyReason"
+            value={formData.urgencyReason}
+            onChange={(e) => setFormData({ ...formData, urgencyReason: e.target.value })}
+            placeholder="Please explain why this issue is urgent"
+            className="min-h-[60px]"
+            required
+          />
+        </div>
+      )}
+
+      {/* Description */}
       <div className="space-y-2">
-        <Label htmlFor="description">Description</Label>
+        <Label htmlFor="description">Detailed Description *</Label>
         <Textarea
           id="description"
           value={formData.description}
           onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-          placeholder="Provide detailed information about your issue"
-          className="min-h-[100px]"
+          placeholder="Provide detailed information about your issue. Include steps to reproduce if applicable."
+          className="min-h-[120px]"
           required
         />
+        <p className="text-xs text-muted-foreground">
+          Include what you were trying to do, what happened, and what you expected to happen.
+        </p>
       </div>
-      <Button type="submit" className="w-full">
-        Create Ticket
+
+      {/* Expected Resolution */}
+      <div className="space-y-2">
+        <Label htmlFor="expectedResolution">Expected Resolution</Label>
+        <Textarea
+          id="expectedResolution"
+          value={formData.expectedResolution}
+          onChange={(e) => setFormData({ ...formData, expectedResolution: e.target.value })}
+          placeholder="What would you like us to do to resolve this issue?"
+          className="min-h-[60px]"
+        />
+      </div>
+
+      {/* Contact Method */}
+      <div className="space-y-2">
+        <Label htmlFor="contactMethod">Preferred Contact Method</Label>
+        <Select 
+          value={formData.contactMethod} 
+          onValueChange={(value) => setFormData({ ...formData, contactMethod: value })}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="email">Email</SelectItem>
+            <SelectItem value="phone">Phone</SelectItem>
+            <SelectItem value="chat">Platform Chat</SelectItem>
+            <SelectItem value="in-person">In-person Meeting</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* File Attachments */}
+      <div className="space-y-2">
+        <Label htmlFor="attachments">Attachments</Label>
+        <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4">
+          <Input
+            id="attachments"
+            type="file"
+            multiple
+            onChange={handleFileChange}
+            accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.gif"
+            className="hidden"
+          />
+          <Label 
+            htmlFor="attachments" 
+            className="cursor-pointer flex flex-col items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Paperclip className="h-6 w-6" />
+            <span>Click to upload files or drag and drop</span>
+            <span className="text-xs">PDF, DOC, images up to 5MB each</span>
+          </Label>
+        </div>
+        
+        {/* Show attached files */}
+        {attachments.length > 0 && (
+          <div className="space-y-2">
+            <Label>Attached Files:</Label>
+            {attachments.map((file, index) => (
+              <div key={index} className="flex items-center justify-between p-2 bg-muted rounded">
+                <span className="text-sm truncate">{file.name}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => removeAttachment(index)}
+                >
+                  <XCircle className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Additional Details */}
+      <div className="space-y-2">
+        <Label htmlFor="additionalDetails">Additional Details</Label>
+        <Textarea
+          id="additionalDetails"
+          value={formData.additionalDetails}
+          onChange={(e) => setFormData({ ...formData, additionalDetails: e.target.value })}
+          placeholder="Any other information that might be helpful"
+          className="min-h-[80px]"
+        />
+      </div>
+
+      <Button type="submit" className="w-full" disabled={isSubmitting}>
+        {isSubmitting ? (
+          <>
+            <Clock className="mr-2 h-4 w-4 animate-spin" />
+            Creating Ticket...
+          </>
+        ) : (
+          <>
+            <Plus className="mr-2 h-4 w-4" />
+            Create Ticket
+          </>
+        )}
       </Button>
     </form>
   )

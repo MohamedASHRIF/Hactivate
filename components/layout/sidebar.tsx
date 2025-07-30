@@ -40,8 +40,8 @@ const navigation = {
   ],
   admin: [
     { name: "Dashboard", href: "/dashboard", icon: Home },
-    { name: "Analytics", href: "/analytics", icon: BarChart3 },
-    { name: "User Management", href: "/users", icon: Users },
+    { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
+    { name: "User Management", href: "/admin/users", icon: Users },
     { name: "Tickets", href: "/tickets", icon: Ticket },
     { name: "Announcements", href: "/announcements", icon: Megaphone },
     { name: "Settings", href: "/settings", icon: Settings },
