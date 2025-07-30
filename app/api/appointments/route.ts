@@ -59,6 +59,7 @@ export async function POST(request: NextRequest) {
 
     const db = await getDatabase()
 
+    // New appointment requests are always 'pending' until teacher acts
     const newAppointment = {
       lecturerId: new ObjectId(lecturerId),
       studentId: new ObjectId(decoded.userId),
@@ -66,7 +67,7 @@ export async function POST(request: NextRequest) {
       description: description || null,
       startTime: new Date(startTime),
       endTime: new Date(endTime),
-      status: "scheduled",
+      status: "pending",
       meetingLink: meetingLink || null,
       location: location || null,
       createdAt: new Date(),
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PATCH: Update appointment (admin only)
+// PATCH: Accept/reject appointment (teacher only)
 export async function PATCH(request: NextRequest) {
   try {
     const token = request.cookies.get("token")?.value
@@ -96,22 +97,28 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
     }
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "fallback-secret") as any
-    if (decoded.role !== "admin") {
+    const { appointmentId, action } = await request.json()
+    if (!appointmentId || !["accept", "reject"].includes(action)) {
+      return NextResponse.json({ message: "Invalid request" }, { status: 400 })
+    }
+    const db = await getDatabase()
+    // Only the lecturer assigned to the appointment can accept/reject
+    const appointment = await db.collection("appointments").findOne({ _id: new ObjectId(appointmentId) })
+    if (!appointment) {
+      return NextResponse.json({ message: "Appointment not found" }, { status: 404 })
+    }
+    if (decoded.role !== "lecturer" || String(appointment.lecturerId) !== String(decoded.userId)) {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 })
     }
-    const { appointmentId, ...updateFields } = await request.json()
-    if (!appointmentId) {
-      return NextResponse.json({ message: "Appointment ID is required" }, { status: 400 })
-    }
-    updateFields.updatedAt = new Date()
-    const db = await getDatabase()
-    const result = await db
-      .collection("appointments")
-      .updateOne({ _id: new ObjectId(appointmentId) }, { $set: updateFields })
+    let newStatus = action === "accept" ? "accepted" : "rejected"
+    const result = await db.collection("appointments").updateOne(
+      { _id: new ObjectId(appointmentId) },
+      { $set: { status: newStatus, updatedAt: new Date() } }
+    )
     if (result.matchedCount === 0) {
       return NextResponse.json({ message: "Appointment not found" }, { status: 404 })
     }
-    return NextResponse.json({ message: "Appointment updated successfully" })
+    return NextResponse.json({ message: `Appointment ${newStatus}` })
   } catch (error) {
     console.error("Update appointment error:", error)
     return NextResponse.json({ message: "Internal server error" }, { status: 500 })
