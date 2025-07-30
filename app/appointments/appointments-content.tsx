@@ -358,10 +358,52 @@ export default function AppointmentsContent() {
   }
 
 
-// State for deleting cancelled appointments (must be before any early return)
-const [deleteAppointmentDialogOpen, setDeleteAppointmentDialogOpen] = useState(false);
-const [appointmentToDelete, setAppointmentToDelete] = useState<string | null>(null);
-const [deleteAppointmentLoading, setDeleteAppointmentLoading] = useState(false);
+
+  // State for deleting cancelled appointments (must be before any early return)
+  const [deleteAppointmentDialogOpen, setDeleteAppointmentDialogOpen] = useState(false);
+  const [appointmentToDelete, setAppointmentToDelete] = useState<string | null>(null);
+  const [deleteAppointmentLoading, setDeleteAppointmentLoading] = useState(false);
+
+  // State for rescheduling appointments (must be at top level)
+  const [rescheduleDialogOpen, setRescheduleDialogOpen] = useState(false);
+  const [rescheduleLoading, setRescheduleLoading] = useState(false);
+  const [rescheduleTime, setRescheduleTime] = useState<{startTime: string, duration: number}>({startTime: '', duration: 30});
+  const [appointmentToReschedule, setAppointmentToReschedule] = useState<string | null>(null);
+
+  // Handler for rescheduling appointment
+  const handleRescheduleAppointment = async () => {
+    if (!appointmentToReschedule) return;
+    // Validation: startTime in future
+    const start = new Date(rescheduleTime.startTime);
+    if (isNaN(start.getTime()) || start < new Date()) {
+      toast({ title: "Invalid start time", description: "Please select a valid future start time.", variant: "destructive" });
+      return;
+    }
+    setRescheduleLoading(true);
+    try {
+      // Calculate endTime from startTime and duration
+      const end = new Date(start.getTime() + (Number(rescheduleTime.duration) || 0) * 60000);
+      const res = await fetch('/api/appointments', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appointmentId: appointmentToReschedule, action: 'reschedule', startTime: start.toISOString(), endTime: end.toISOString() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: 'Appointment rescheduled', description: data.message });
+        fetchAppointments();
+        setRescheduleDialogOpen(false);
+        setAppointmentToReschedule(null);
+        setRescheduleTime({startTime: '', duration: 30});
+      } else {
+        toast({ title: 'Error', description: data.message || 'Failed to reschedule appointment', variant: 'destructive' });
+      }
+    } catch (err) {
+      toast({ title: 'Error', description: 'Failed to reschedule appointment', variant: 'destructive' });
+    } finally {
+      setRescheduleLoading(false);
+    }
+  };
 
 if (!user) return null
 
@@ -648,6 +690,8 @@ if (!user) return null
                       const isUpcoming = new Date(appointment.startTime) > new Date();
                       const canCancel = isStudent && isUpcoming && appointment.status === "pending";
                       const canDelete = ["cancelled", "rejected"].includes(appointment.status);
+                      const canReschedule = user?.role === "lecturer" && appointment.status === "accepted";
+                      const canStudentRespondReschedule = user?.role === "student" && appointment.status === "rescheduled";
                       // Use _id if present, else fallback to id, and always extract string if $oid
                       let appointmentId: string = "";
                       if (appointment._id) {
@@ -660,6 +704,25 @@ if (!user) return null
                       } else if ((appointment as any).id) {
                         appointmentId = String((appointment as any).id);
                       }
+                      // Handler for student accept/reject reschedule
+                      const handleStudentRescheduleResponse = async (appointmentId: string, action: 'accept' | 'reject') => {
+                        try {
+                          const res = await fetch('/api/appointments', {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ appointmentId, action }),
+                          });
+                          const data = await res.json();
+                          if (res.ok) {
+                            toast({ title: `Appointment ${action === 'accept' ? 'Accepted' : 'Rejected'}` });
+                            fetchAppointments();
+                          } else {
+                            toast({ title: 'Error', description: data.message || 'Failed to update appointment', variant: 'destructive' });
+                          }
+                        } catch (err) {
+                          toast({ title: 'Error', description: 'Failed to update appointment', variant: 'destructive' });
+                        }
+                      };
                       return (
                         <div key={appointmentId} className="p-4 border rounded-lg">
                           <div className="flex items-start justify-between">
@@ -716,6 +779,68 @@ if (!user) return null
                                   <Button size="sm" variant="destructive" onClick={() => handleAppointmentAction(appointment._id as string, "reject")}>Reject</Button>
                                 </div>
                               )}
+                              {/* Lecturer: Reschedule for accepted appointments */}
+                              {canReschedule && (
+                                <div className="mt-3 flex gap-2">
+                                <Button size="sm" variant="outline" onClick={() => {
+                                    setAppointmentToReschedule(appointmentId);
+                                    setRescheduleDialogOpen(true);
+                                    setRescheduleTime({startTime: '', duration: 30});
+                                  }}>Reschedule</Button>
+                                </div>
+                              )}
+                              {/* Student: Accept/Reject for rescheduled appointments */}
+                              {canStudentRespondReschedule && (
+                                <div className="mt-3 flex gap-2">
+                                  <Button size="sm" variant="default" onClick={() => handleStudentRescheduleResponse(appointment._id as string, 'accept')}>Accept</Button>
+                                  <Button size="sm" variant="destructive" onClick={() => handleStudentRescheduleResponse(appointment._id as string, 'reject')}>Reject</Button>
+                                </div>
+                              )}
+        {/* Reschedule dialog for lecturers */}
+        <Dialog open={rescheduleDialogOpen} onOpenChange={(open) => {
+          setRescheduleDialogOpen(open);
+          if (!open) {
+            setAppointmentToReschedule(null);
+            setRescheduleTime({startTime: '', duration: 30});
+          }
+        }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Reschedule Appointment</DialogTitle>
+              <DialogDescription>Select a new start time and duration for this appointment.</DialogDescription>
+            </DialogHeader>
+            <div className="mb-4">
+              <Label>Start Time</Label>
+              <Input type="datetime-local" value={rescheduleTime.startTime} min={(() => {
+                const d = new Date();
+                const pad = (n: number) => n.toString().padStart(2, '0');
+                return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+              })()} onChange={e => setRescheduleTime(t => ({ ...t, startTime: e.target.value }))} required />
+            </div>
+            <div className="mb-4">
+              <Label>Duration</Label>
+              <Select value={String(rescheduleTime.duration)} onValueChange={v => setRescheduleTime(t => ({ ...t, duration: Number(v) }))} required>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select duration" />
+                </SelectTrigger>
+                <SelectContent>
+                  {[...Array(8)].map((_, i) => {
+                    const min = (i + 1) * 15;
+                    return (
+                      <SelectItem key={min} value={String(min)}>{min} minutes</SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => setRescheduleDialogOpen(false)} disabled={rescheduleLoading}>Cancel</Button>
+              <Button variant="default" onClick={handleRescheduleAppointment} disabled={rescheduleLoading || !rescheduleTime.startTime || !rescheduleTime.duration}>
+                {rescheduleLoading ? <Loader2 className="animate-spin w-4 h-4" /> : "Reschedule"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
                               {/* Student: Cancel button for upcoming appointments */}
                               {canCancel && (
                                 <div className="mt-3 flex gap-2">
