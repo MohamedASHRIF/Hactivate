@@ -50,15 +50,13 @@ export async function POST(request: NextRequest) {
     const db = await getDatabase()
     
     // Calculate real-time analytics from database collections
-    const [userCount, ticketCount, adminAnnouncementCount, lecturerAnnouncementCount, appointmentCount] = await Promise.all([
+    const [userCount, ticketCount, announcementCount, appointmentCount] = await Promise.all([
       db.collection("users").countDocuments(),
       db.collection("tickets").countDocuments(),
       db.collection("announcements").countDocuments(),
-      db.collection("lecturer_announcements").countDocuments(),
       db.collection("appointments").countDocuments()
     ])
     
-    const totalAnnouncements = adminAnnouncementCount + lecturerAnnouncementCount
     const openTickets = await db.collection("tickets").countDocuments({ status: "open" })
     const closedTickets = ticketCount - openTickets
     
@@ -67,7 +65,7 @@ export async function POST(request: NextRequest) {
       totalTickets: ticketCount,
       openTickets: openTickets,
       closedTickets: closedTickets,
-      totalAnnouncements: totalAnnouncements,
+      totalAnnouncements: announcementCount,
       totalAppointments: appointmentCount,
       lastUpdated: new Date().toLocaleString(),
       updatedAt: new Date()

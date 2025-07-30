@@ -32,8 +32,8 @@ export async function GET(request: NextRequest) {
 
         return {
           ...ticket,
-          studentName: student?.name || "Unknown",
-          assignedToName: assignedUser?.name || null,
+          studentName: student?.fullName || "Unknown",
+          assignedToName: assignedUser?.fullName || null,
         }
       }),
     )
@@ -53,27 +53,28 @@ export async function POST(request: NextRequest) {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "fallback-secret") as any
-    const { title, description, category, priority } = await request.json()
+    const data = await request.json()
 
-    if (!title || !description || !category || !priority) {
-      return NextResponse.json({ message: "All fields are required" }, { status: 400 })
+    if (!data.title || !data.description || !data.category || !data.priority) {
+      return NextResponse.json({ message: "Missing required fields" }, { status: 400 })
     }
 
     const db = await getDatabase()
 
-    const newTicket = {
-      studentId: new ObjectId(decoded.userId),
-      title,
-      description,
-      category,
-      priority,
+    const ticketData = {
+      title: data.title,
+      description: data.description,
+      category: data.category,
+      priority: data.priority,
       status: "open",
-      replies: [],
+      studentId: new ObjectId(decoded.userId),
+      assignedTo: data.assignedTo ? new ObjectId(data.assignedTo) : null,
       createdAt: new Date(),
       updatedAt: new Date(),
+      replies: [],
     }
 
-    const result = await db.collection("tickets").insertOne(newTicket)
+    const result = await db.collection("tickets").insertOne(ticketData)
 
     return NextResponse.json(
       {
@@ -95,22 +96,28 @@ export async function PATCH(request: NextRequest) {
     if (!token) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
     }
+    
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "fallback-secret") as any
     if (decoded.role !== "admin") {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 })
     }
+    
     const { ticketId, ...updateFields } = await request.json()
     if (!ticketId) {
       return NextResponse.json({ message: "Ticket ID is required" }, { status: 400 })
     }
+    
     updateFields.updatedAt = new Date()
     const db = await getDatabase()
+    
     const result = await db
       .collection("tickets")
       .updateOne({ _id: new ObjectId(ticketId) }, { $set: updateFields })
+      
     if (result.matchedCount === 0) {
       return NextResponse.json({ message: "Ticket not found" }, { status: 404 })
     }
+    
     return NextResponse.json({ message: "Ticket updated successfully" })
   } catch (error) {
     console.error("Update ticket error:", error)
@@ -125,19 +132,24 @@ export async function DELETE(request: NextRequest) {
     if (!token) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
     }
+    
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "fallback-secret") as any
     if (decoded.role !== "admin") {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 })
     }
+    
     const { ticketId } = await request.json()
     if (!ticketId) {
       return NextResponse.json({ message: "Ticket ID is required" }, { status: 400 })
     }
+    
     const db = await getDatabase()
     const result = await db.collection("tickets").deleteOne({ _id: new ObjectId(ticketId) })
+    
     if (result.deletedCount === 0) {
       return NextResponse.json({ message: "Ticket not found" }, { status: 404 })
     }
+    
     return NextResponse.json({ message: "Ticket deleted successfully" })
   } catch (error) {
     console.error("Delete ticket error:", error)

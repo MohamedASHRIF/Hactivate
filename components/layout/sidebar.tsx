@@ -1,137 +1,130 @@
 "use client"
 
 import { useState } from "react"
-import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { useAuth } from "@/components/auth-provider"
-import {
-  MessageSquare,
-  Ticket,
-  Calendar,
-  Megaphone,
-  Settings,
-  Home,
+import { Button } from "@/components/ui/button"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { 
+  Home, 
+  MessageSquare, 
+  Ticket, 
+  Calendar, 
+  Megaphone, 
+  Settings, 
+  LogOut,
   Users,
   BarChart3,
-  Menu,
-  X,
-  LogOut,
+  MessageCircle
 } from "lucide-react"
-
-const navigation = {
-  student: [
-    { name: "Dashboard", href: "/dashboard", icon: Home },
-    { name: "Live Chat", href: "/chat", icon: MessageSquare },
-    { name: "My Tickets", href: "/tickets", icon: Ticket },
-    { name: "Appointments", href: "/appointments", icon: Calendar },
-    { name: "Announcements", href: "/announcements", icon: Megaphone },
-    { name: "Settings", href: "/settings", icon: Settings },
-  ],
-  lecturer: [
-    { name: "Dashboard", href: "/dashboard", icon: Home },
-    { name: "Live Chat", href: "/chat", icon: MessageSquare },
-    { name: "Tickets", href: "/tickets", icon: Ticket },
-    { name: "Appointments", href: "/appointments", icon: Calendar },
-    { name: "Announcements", href: "/announcements", icon: Megaphone },
-    { name: "Settings", href: "/settings", icon: Settings },
-  ],
-  admin: [
-    { name: "Dashboard", href: "/dashboard", icon: Home },
-    { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
-    { name: "User Management", href: "/users", icon: Users },
-    { name: "Tickets", href: "/tickets", icon: Ticket },
-    { name: "Announcements", href: "/announcements", icon: Megaphone },
-    { name: "Settings", href: "/settings", icon: Settings },
-  ],
-}
+import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
 
 export function Sidebar() {
-  const [isOpen, setIsOpen] = useState(false)
-  const pathname = usePathname()
   const { user, logout } = useAuth()
+  const router = useRouter()
+  const pathname = usePathname()
+  const [isCollapsed, setIsCollapsed] = useState(false)
 
-  if (!user) return null
+  const handleLogout = async () => {
+    await logout()
+    router.push('/auth/login')
+  }
 
-  const userNavigation = navigation[user.role] || navigation.student
+  const navigation = {
+    student: [
+      { name: "Dashboard", href: "/dashboard", icon: Home },
+      { name: "Live Chat", href: "/chat", icon: MessageSquare },
+      { name: "Forum", href: "/forum", icon: MessageCircle },
+      { name: "My Tickets", href: "/tickets", icon: Ticket },
+      { name: "Appointments", href: "/appointments", icon: Calendar },
+      { name: "Announcements", href: "/announcements", icon: Megaphone },
+      { name: "Settings", href: "/settings", icon: Settings },
+    ],
+    lecturer: [
+      { name: "Dashboard", href: "/dashboard", icon: Home },
+      { name: "Live Chat", href: "/chat", icon: MessageSquare },
+      { name: "Forum", href: "/forum", icon: MessageCircle },
+      { name: "Tickets", href: "/tickets", icon: Ticket },
+      { name: "Appointments", href: "/appointments", icon: Calendar },
+      { name: "Announcements", href: "/announcements", icon: Megaphone },
+      { name: "Settings", href: "/settings", icon: Settings },
+    ],
+    admin: [
+      { name: "Dashboard", href: "/dashboard", icon: Home },
+      { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
+      { name: "User Management", href: "/admin/users", icon: Users },
+      { name: "Tickets", href: "/tickets", icon: Ticket },
+      { name: "Announcements", href: "/announcements", icon: Megaphone },
+      { name: "Settings", href: "/settings", icon: Settings },
+    ],
+  }
+
+  const currentNav = navigation[user?.role as keyof typeof navigation] || navigation.student
 
   return (
-    <>
-      {/* Mobile menu button */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="fixed top-4 left-4 z-50 md:hidden"
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-      </Button>
+    <div className="fixed left-0 top-0 h-full w-64 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 z-50">
+      <div className="flex flex-col h-full">
+        {/* Logo */}
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white">UniConnect</h1>
+        </div>
 
-      {/* Sidebar */}
-      <div
-        className={cn(
-          "fixed inset-y-0 left-0 z-40 w-64 bg-card border-r transform transition-transform duration-200 ease-in-out md:translate-x-0",
-          isOpen ? "translate-x-0" : "-translate-x-full",
-        )}
-      >
-        <div className="flex flex-col h-full">
-          {/* Logo */}
-          <div className="flex items-center justify-center h-16 px-4 border-b">
-            <h1 className="text-xl font-bold text-primary">UniConnect</h1>
-          </div>
-
-          {/* User info */}
-          <div className="p-4 border-b">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                <span className="text-sm font-medium text-primary">{user.name.charAt(0).toUpperCase()}</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{user.name}</p>
-                <p className="text-xs text-muted-foreground capitalize">{user.role}</p>
-              </div>
+        {/* User Info */}
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center space-x-3">
+            <Avatar className="h-8 w-8">
+              <AvatarFallback className="text-xs">
+                {user?.name?.charAt(0) || "U"}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                {user?.name || "User"}
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                {user?.role || "User"}
+              </p>
             </div>
           </div>
+        </div>
 
-          {/* Navigation */}
-          <ScrollArea className="flex-1 px-3 py-4">
-            <nav className="space-y-1">
-              {userNavigation.map((item) => {
-                const isActive = pathname === item.href
-                return (
+        {/* Navigation */}
+        <nav className="flex-1 p-4">
+          <ul className="space-y-2">
+            {currentNav.map((item) => {
+              const isActive = pathname === item.href
+              return (
+                <li key={item.name}>
                   <Link
-                    key={item.name}
                     href={item.href}
-                    className={cn(
-                      "flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors",
+                    className={`flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                       isActive
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted",
-                    )}
-                    onClick={() => setIsOpen(false)}
+                        ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200"
+                        : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                    }`}
                   >
-                    <item.icon className="mr-3 h-5 w-5" />
-                    {item.name}
+                    <item.icon className="h-4 w-4" />
+                    <span>{item.name}</span>
                   </Link>
-                )
-              })}
-            </nav>
-          </ScrollArea>
+                </li>
+              )
+            })}
+          </ul>
+        </nav>
 
-          {/* Logout */}
-          <div className="p-4 border-t">
-            <Button variant="ghost" className="w-full justify-start" onClick={logout}>
-              <LogOut className="mr-3 h-5 w-5" />
-              Logout
-            </Button>
-          </div>
+        {/* Logout */}
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+          <Button
+            onClick={handleLogout}
+            variant="outline"
+            className="w-full justify-start"
+          >
+            <LogOut className="h-4 w-4 mr-2" />
+            Logout
+          </Button>
         </div>
       </div>
-
-      {/* Overlay */}
-      {isOpen && <div className="fixed inset-0 z-30 bg-black/50 md:hidden" onClick={() => setIsOpen(false)} />}
-    </>
+    </div>
   )
 }

@@ -1,24 +1,26 @@
-import type { ObjectId } from "mongodb"
+// models/Ticket.ts
+import mongoose, { Schema, model, models } from "mongoose";
 
-export interface Ticket {
-  _id?: ObjectId
-  studentId: ObjectId
-  assignedTo?: ObjectId
-  title: string
-  description: string
-  category: "academic" | "technical" | "administrative" | "other"
-  priority: "low" | "medium" | "high" | "urgent"
-  status: "open" | "in-progress" | "resolved" | "closed"
-  attachments?: string[]
-  replies: TicketReply[]
-  createdAt: Date
-  updatedAt: Date
-}
+const ReplySchema = new Schema({
+	userId: String,
+	userName: String,
+	message: String,
+	createdAt: { type: Date, default: Date.now },
+});
 
-export interface TicketReply {
-  _id?: ObjectId
-  userId: ObjectId
-  message: string
-  attachments?: string[]
-  createdAt: Date
-}
+const TicketSchema = new Schema({
+	title: String,
+	description: String,
+	category: String,
+	priority: String,
+	status: { type: String, default: "open" },
+	studentName: String,
+	assignedTo: String,
+	createdAt: { type: Date, default: Date.now },
+	updatedAt: { type: Date, default: Date.now },
+	replies: [ReplySchema],
+});
+
+// Prevent model overwrite upon hot reloads in dev
+const Ticket = models.Ticket || model("Ticket", TicketSchema);
+export default Ticket;
