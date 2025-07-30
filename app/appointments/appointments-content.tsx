@@ -183,23 +183,33 @@ export default function AppointmentsContent() {
     title: "",
     description: "",
     startTime: "",
-    endTime: "",
+    duration: 30, // default duration in minutes
   })
+
+  // Remove end time logic, not needed with duration
   const [bookingLoading, setBookingLoading] = useState(false)
 
   const handleBookAppointment = async (e: React.FormEvent) => {
     e.preventDefault()
     setBookingLoading(true)
     try {
+      // Calculate endTime from startTime and duration
+      const start = new Date(bookingForm.startTime)
+      const end = new Date(start.getTime() + (Number(bookingForm.duration) || 0) * 60000)
+      const payload = {
+        ...bookingForm,
+        endTime: end.toISOString(),
+      }
+      delete payload.duration
       const res = await fetch("/api/appointments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(bookingForm),
+        body: JSON.stringify(payload),
       })
       if (res.ok) {
         toast({ title: "Appointment Requested", description: "Your appointment request has been sent." })
         setIsBookingDialogOpen(false)
-        setBookingForm({ lecturerId: "", title: "", description: "", startTime: "", endTime: "" })
+        setBookingForm({ lecturerId: "", title: "", description: "", startTime: "", duration: 30 })
         fetchAppointments()
       } else {
         const data = await res.json()
@@ -290,11 +300,37 @@ export default function AppointmentsContent() {
                     <div className="flex gap-4">
                       <div className="flex-1">
                         <Label>Start Time</Label>
-                        <Input type="datetime-local" value={bookingForm.startTime} onChange={e => setBookingForm(f => ({ ...f, startTime: e.target.value }))} required />
+                        <Input
+                          type="datetime-local"
+                          value={bookingForm.startTime}
+                          min={(() => {
+                            const d = new Date();
+                            const pad = (n: number) => n.toString().padStart(2, '0');
+                            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                          })()}
+                          onChange={e => setBookingForm(f => ({ ...f, startTime: e.target.value }))}
+                          required
+                        />
                       </div>
                       <div className="flex-1">
-                        <Label>End Time</Label>
-                        <Input type="datetime-local" value={bookingForm.endTime} onChange={e => setBookingForm(f => ({ ...f, endTime: e.target.value }))} required />
+                        <Label>Duration</Label>
+                        <Select
+                          value={String(bookingForm.duration)}
+                          onValueChange={v => setBookingForm(f => ({ ...f, duration: Number(v) }))}
+                          required
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select duration" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {[...Array(8)].map((_, i) => {
+                              const min = (i + 1) * 15;
+                              return (
+                                <SelectItem key={min} value={String(min)}>{min} minutes</SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                     <div>
