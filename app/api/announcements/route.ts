@@ -13,35 +13,95 @@ export async function GET(request: NextRequest) {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "fallback-secret") as any
     const db = await getDatabase()
 
-    const adminAnnouncements = await db
-      .collection("announcements")
-      .find(
-        decoded.role === "admin"
-          ? {
-              $or: [{ expiresAt: { $exists: false } }, { expiresAt: { $gte: new Date() } }],
-            }
-          : {
-              $and: [
-                { targetAudience: { $in: [decoded.role] } },
-                {
-                  $or: [
-                    { expiresAt: { $exists: false } },
-                    { expiresAt: { $gte: new Date() } },
-                  ],
-                },
-              ],
-            }
-      )
-      .sort({ isPinned: -1, createdAt: -1 })
-      .toArray()
+    // Get user's department for filtering
+    const user = await db.collection("users").findOne({ _id: new ObjectId(decoded.userId) })
+    const userDepartment = user?.department
+
+    let adminAnnouncements: any[] = []
+    
+    if (decoded.role === "admin") {
+      // Admins see all announcements from the announcements collection
+      adminAnnouncements = await db
+        .collection("announcements")
+        .find({
+          $or: [
+            { expiresAt: { $exists: false } }, 
+            { expiresAt: "" }, 
+            { expiresAt: { $gte: new Date() } }
+          ],
+        })
+        .sort({ isPinned: -1, createdAt: -1 })
+        .toArray()
+    } else {
+      // Students and lecturers see filtered admin announcements
+      const baseQuery = {
+        targetAudience: { $in: [decoded.role] },
+        $or: [
+          { expiresAt: { $exists: false } }, 
+          { expiresAt: "" }, 
+          { expiresAt: { $gte: new Date() } }
+        ],
+      }
+
+      // Add department filtering for students and lecturers
+      // For department-specific announcements, check if user's department is in targetDepartments
+      // For non-department-specific announcements, show them to everyone
+      const departmentFilter = {
+        $or: [
+          // Non-department-specific announcements (show to everyone)
+          { isDepartmentSpecific: { $ne: true } },
+          // Department-specific announcements that include user's department
+          {
+            $and: [
+              { isDepartmentSpecific: true },
+              { targetDepartments: { $in: [userDepartment] } }
+            ]
+          }
+        ]
+      }
+
+      const finalQuery = {
+        $and: [baseQuery, departmentFilter]
+      }
+
+      adminAnnouncements = await db
+        .collection("announcements")
+        .find(finalQuery)
+        .sort({ isPinned: -1, createdAt: -1 })
+        .toArray()
+    }
 
     let lecturerAnnouncements: any[] = []
     if (decoded.role === "student") {
+      const lecturerQuery = {
+        $and: [
+          { targetAudience: "student" },
+          {
+            $or: [
+              { expiresAt: { $exists: false } }, 
+              { expiresAt: "" }, 
+              { expiresAt: { $gte: new Date() } }
+            ]
+          },
+          {
+            $or: [
+              // Non-department-specific announcements (show to everyone)
+              { isDepartmentSpecific: { $ne: true } },
+              // Department-specific announcements that include user's department
+              {
+                $and: [
+                  { isDepartmentSpecific: true },
+                  { targetDepartments: { $in: [userDepartment] } }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
       lecturerAnnouncements = await db
         .collection("lecturer_announcements")
-        .find({
-          targetAudience: "student",
-        })
+        .find(lecturerQuery)
         .sort({ isPinned: -1, createdAt: -1 })
         .toArray()
     }
@@ -94,9 +154,31 @@ export async function POST(request: NextRequest) {
     const db = await getDatabase()
     const data = await request.json()
 
+    // Get user's department
+    const user = await db.collection("users").findOne({ _id: new ObjectId(decoded.userId) })
+    const userDepartment = user?.department
+
+    // For lecturers, if department-specific is selected but no departments are specified,
+    // default to the lecturer's own department
+    let targetDepartments = data.targetDepartments || []
+    let isDepartmentSpecific = data.isDepartmentSpecific || false
+
+    if (decoded.role === "lecturer" && isDepartmentSpecific && targetDepartments.length === 0) {
+      targetDepartments = userDepartment ? [userDepartment] : []
+    }
+
+    // For admins, if department-specific is selected but no departments are specified,
+    // it means they want to send to all departments (empty array)
+    if (decoded.role === "admin" && isDepartmentSpecific && targetDepartments.length === 0) {
+      // Keep empty array to indicate all departments
+      targetDepartments = []
+    }
+
     const announcementData = {
       ...data,
       authorId: new ObjectId(decoded.userId),
+      targetDepartments,
+      isDepartmentSpecific,
       createdAt: new Date(),
       updatedAt: new Date(),
     }

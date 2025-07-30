@@ -7,6 +7,8 @@ export interface Announcement {
   content: string
   category: "general" | "academic" | "event" | "urgent"
   targetAudience: ("student" | "lecturer" | "admin")[]
+  targetDepartments?: string[] // Array of department names for department-specific announcements
+  isDepartmentSpecific: boolean // Whether this announcement is for specific departments only
   attachments?: string[]
   isPinned: boolean
   expiresAt?: Date
