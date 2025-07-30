@@ -28,12 +28,16 @@ export async function GET(request: NextRequest) {
         const student = await db.collection("users").findOne({ _id: appointment.studentId })
         const lecturer = await db.collection("users").findOne({ _id: appointment.lecturerId })
 
+        // Serialize ObjectId fields to string
         return {
           ...appointment,
+          _id: appointment._id?.toString(),
+          lecturerId: appointment.lecturerId?.toString(),
+          studentId: appointment.studentId?.toString(),
           studentName: student?.name || "Unknown",
           lecturerName: lecturer?.name || "Unknown",
         }
-      }),
+      })
     )
 
     return NextResponse.json(appointmentsWithUsers)
@@ -133,37 +137,45 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
     }
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "fallback-secret") as any
-    const { appointmentId } = await request.json()
+    const { appointmentId, hardDelete } = await request.json();
     if (!appointmentId) {
-      return NextResponse.json({ message: "Appointment ID is required" }, { status: 400 })
+      return NextResponse.json({ message: "Appointment ID is required" }, { status: 400 });
     }
-    const db = await getDatabase()
-    const appointment = await db.collection("appointments").findOne({ _id: new ObjectId(appointmentId) })
+    const db = await getDatabase();
+    const appointment = await db.collection("appointments").findOne({ _id: new ObjectId(appointmentId) });
     if (!appointment) {
-      return NextResponse.json({ message: "Appointment not found" }, { status: 404 })
+      return NextResponse.json({ message: "Appointment not found" }, { status: 404 });
     }
-    if (decoded.role === "admin") {
-      // Admin can delete any appointment
-      const result = await db.collection("appointments").deleteOne({ _id: new ObjectId(appointmentId) })
+    // Hard delete if admin or lecturer and hardDelete is true
+    if ((decoded.role === "admin" || decoded.role === "lecturer") && hardDelete) {
+      const result = await db.collection("appointments").deleteOne({ _id: new ObjectId(appointmentId) });
       if (result.deletedCount === 0) {
-        return NextResponse.json({ message: "Appointment not found" }, { status: 404 })
+        return NextResponse.json({ message: "Appointment not found" }, { status: 404 });
       }
-      return NextResponse.json({ message: "Appointment deleted successfully" })
+      return NextResponse.json({ message: "Appointment deleted successfully" });
     } else if (decoded.role === "student" && String(appointment.studentId) === String(decoded.userId)) {
-      // Student can cancel their own appointment if not completed/cancelled
-      if (["completed", "cancelled"].includes(appointment.status)) {
-        return NextResponse.json({ message: "Cannot cancel a completed or already cancelled appointment" }, { status: 400 })
+      // Student requests hard delete of their own cancelled or rejected appointment
+      if (hardDelete && ["cancelled", "rejected"].includes(appointment.status)) {
+        const result = await db.collection("appointments").deleteOne({ _id: new ObjectId(appointmentId) });
+        if (result.deletedCount === 0) {
+          return NextResponse.json({ message: "Appointment not found" }, { status: 404 });
+        }
+        return NextResponse.json({ message: "Appointment deleted successfully" });
+      }
+      // Student can cancel their own appointment if not completed/cancelled/rejected
+      if (["completed", "cancelled", "rejected"].includes(appointment.status)) {
+        return NextResponse.json({ message: "Cannot cancel a completed, rejected, or already cancelled appointment" }, { status: 400 });
       }
       const result = await db.collection("appointments").updateOne(
         { _id: new ObjectId(appointmentId) },
         { $set: { status: "cancelled", updatedAt: new Date() } }
-      )
+      );
       if (result.matchedCount === 0) {
-        return NextResponse.json({ message: "Appointment not found" }, { status: 404 })
+        return NextResponse.json({ message: "Appointment not found" }, { status: 404 });
       }
-      return NextResponse.json({ message: "Appointment cancelled successfully" })
+      return NextResponse.json({ message: "Appointment cancelled successfully" });
     } else {
-      return NextResponse.json({ message: "Forbidden" }, { status: 403 })
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
   } catch (error) {
     console.error("Delete/cancel appointment error:", error)

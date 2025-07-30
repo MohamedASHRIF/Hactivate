@@ -357,7 +357,45 @@ export default function AppointmentsContent() {
     }
   }
 
-  if (!user) return null
+
+// State for deleting cancelled appointments (must be before any early return)
+const [deleteAppointmentDialogOpen, setDeleteAppointmentDialogOpen] = useState(false);
+const [appointmentToDelete, setAppointmentToDelete] = useState<string | null>(null);
+const [deleteAppointmentLoading, setDeleteAppointmentLoading] = useState(false);
+
+if (!user) return null
+
+  // Handler for deleting cancelled appointments (must be inside component to access toast/fetchAppointments)
+  const handleDeleteAppointment = async (appointmentIdRaw: string | { $oid: string }) => {
+    setDeleteAppointmentLoading(true);
+    try {
+      // If appointmentId is an object (MongoDB ObjectId), extract the string value
+      let appointmentId: string;
+      if (typeof appointmentIdRaw === "object" && appointmentIdRaw !== null && "$oid" in appointmentIdRaw) {
+        appointmentId = appointmentIdRaw.$oid;
+      } else {
+        appointmentId = String(appointmentIdRaw);
+      }
+      const res = await fetch(`/api/appointments`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appointmentId, hardDelete: true }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: "Appointment deleted", description: data.message });
+        fetchAppointments();
+      } else {
+        toast({ title: "Error", description: data.message || "Failed to delete appointment", variant: "destructive" });
+      }
+    } catch (err) {
+      toast({ title: "Error", description: "Failed to delete appointment", variant: "destructive" });
+    } finally {
+      setDeleteAppointmentLoading(false);
+      setAppointmentToDelete(null);
+      setDeleteAppointmentDialogOpen(false);
+    }
+  };
 
   return (
     <main className="p-6">
@@ -609,8 +647,21 @@ export default function AppointmentsContent() {
                       const isStudent = user?.role === "student";
                       const isUpcoming = new Date(appointment.startTime) > new Date();
                       const canCancel = isStudent && isUpcoming && appointment.status === "pending";
+                      const canDelete = ["cancelled", "rejected"].includes(appointment.status);
+                      // Use _id if present, else fallback to id, and always extract string if $oid
+                      let appointmentId: string = "";
+                      if (appointment._id) {
+                        const _id: any = appointment._id;
+                        if (typeof _id === "object" && _id !== null && "$oid" in _id) {
+                          appointmentId = _id.$oid;
+                        } else {
+                          appointmentId = String(_id);
+                        }
+                      } else if ((appointment as any).id) {
+                        appointmentId = String((appointment as any).id);
+                      }
                       return (
-                        <div key={appointment._id} className="p-4 border rounded-lg">
+                        <div key={appointmentId} className="p-4 border rounded-lg">
                           <div className="flex items-start justify-between">
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-2">
@@ -674,10 +725,33 @@ export default function AppointmentsContent() {
                                 </div>
                               )}
                             </div>
+                            {/* Delete button for cancelled appointments (right side) */}
+                            {canDelete && (
+                              <div className="flex items-center ml-2">
+                                <Button size="icon" variant="ghost" onClick={() => { setAppointmentToDelete(appointmentId); setDeleteAppointmentDialogOpen(true); }} title="Delete appointment">
+                                  <Trash2 className="w-4 h-4 text-red-500" />
+                                </Button>
+                              </div>
+                            )}
                           </div>
                         </div>
                       );
                     })}
+        {/* Delete cancelled appointment dialog */}
+        <Dialog open={deleteAppointmentDialogOpen} onOpenChange={setDeleteAppointmentDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Cancelled Appointment?</DialogTitle>
+              <DialogDescription>Are you sure you want to permanently delete this cancelled appointment? This action cannot be undone.</DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => setDeleteAppointmentDialogOpen(false)} disabled={deleteAppointmentLoading}>Cancel</Button>
+              <Button variant="destructive" onClick={() => appointmentToDelete && handleDeleteAppointment(appointmentToDelete)} disabled={deleteAppointmentLoading}>
+                {deleteAppointmentLoading ? <Loader2 className="animate-spin w-4 h-4" /> : "Delete"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
                   </div>
                 )}
               </ScrollArea>
