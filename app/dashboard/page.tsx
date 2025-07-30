@@ -9,11 +9,15 @@ import { Button } from "@/components/ui/button"
 import { MessageSquare, Ticket, Calendar, Users, TrendingUp, Clock, CheckCircle, AlertCircle, Plus } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
+import { useToast } from "@/hooks/use-toast"
 
 export default function DashboardPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
+  const { toast } = useToast()
   const [isNavigating, setIsNavigating] = useState(false)
+  const [dashboardData, setDashboardData] = useState<any>(null)
+  const [isLoadingData, setIsLoadingData] = useState(true)
 
   useEffect(() => {
     if (!loading && !user) {
@@ -21,7 +25,77 @@ export default function DashboardPage() {
     }
   }, [user, loading, router])
 
-  if (loading) {
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      if (!user) return
+
+      try {
+        setIsLoadingData(true)
+        
+        if (user.role === 'admin') {
+          // For admin, use mock data
+          setDashboardData({
+            stats: [
+              { title: "Total Users", value: "1,234" },
+              { title: "Open Tickets", value: "23" },
+              { title: "System Uptime", value: "99.9%" },
+              { title: "Active Sessions", value: "156" }
+            ],
+            recentActivity: [
+              {
+                id: 1,
+                type: "ticket",
+                title: "New support ticket created",
+                description: "Technical issue with course materials",
+                time: "2 minutes ago",
+                status: "open",
+              },
+              {
+                id: 2,
+                type: "appointment",
+                title: "Appointment scheduled",
+                description: "Meeting with Dr. Smith tomorrow at 2 PM",
+                time: "1 hour ago",
+                status: "scheduled",
+              },
+              {
+                id: 3,
+                type: "message",
+                title: "New message received",
+                description: "Response to your academic inquiry",
+                time: "3 hours ago",
+                status: "unread",
+              },
+            ]
+          })
+        } else {
+          // For students and lecturers, fetch real data
+          const response = await fetch('/api/dashboard/stats')
+          if (response.ok) {
+            const data = await response.json()
+            setDashboardData(data)
+          } else {
+            throw new Error('Failed to fetch dashboard data')
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error)
+        toast({
+          title: "Error",
+          description: "Failed to load dashboard data",
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoadingData(false)
+      }
+    }
+
+    if (user) {
+      fetchDashboardData()
+    }
+  }, [user, toast])
+
+  if (loading || isLoadingData) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -75,66 +149,24 @@ export default function DashboardPage() {
     }
   }
 
-  const studentStats = [
-    { title: "Active Tickets", value: "3", icon: Ticket, color: "text-blue-600" },
-    { title: "Upcoming Appointments", value: "2", icon: Calendar, color: "text-green-600" },
-    { title: "Unread Messages", value: "5", icon: MessageSquare, color: "text-purple-600" },
-    { title: "Completed Tasks", value: "12", icon: CheckCircle, color: "text-emerald-600" },
-  ]
-
-  const lecturerStats = [
-    { title: "Pending Tickets", value: "8", icon: AlertCircle, color: "text-orange-600" },
-    { title: "Today's Appointments", value: "4", icon: Calendar, color: "text-blue-600" },
-    { title: "Active Students", value: "45", icon: Users, color: "text-green-600" },
-    { title: "Response Time", value: "2.3h", icon: Clock, color: "text-purple-600" },
-  ]
-
-  const adminStats = [
-    { title: "Total Users", value: "1,234", icon: Users, color: "text-blue-600" },
-    { title: "Open Tickets", value: "23", icon: Ticket, color: "text-orange-600" },
-    { title: "System Uptime", value: "99.9%", icon: TrendingUp, color: "text-green-600" },
-    { title: "Active Sessions", value: "156", icon: MessageSquare, color: "text-purple-600" },
-  ]
-
   const getStats = () => {
-    switch (user.role) {
-      case "student":
-        return studentStats
-      case "lecturer":
-        return lecturerStats
-      case "admin":
-        return adminStats
-      default:
-        return studentStats
-    }
+    if (!dashboardData) return []
+    
+    return dashboardData.stats.map((stat: any, index: number) => {
+      const icons = [Users, Ticket, TrendingUp, MessageSquare, Calendar, AlertCircle, CheckCircle, Clock]
+      const colors = ["text-blue-600", "text-orange-600", "text-green-600", "text-purple-600", "text-emerald-600"]
+      
+      return {
+        ...stat,
+        icon: icons[index % icons.length],
+        color: colors[index % colors.length]
+      }
+    })
   }
 
-  const recentActivity = [
-    {
-      id: 1,
-      type: "ticket",
-      title: "New support ticket created",
-      description: "Technical issue with course materials",
-      time: "2 minutes ago",
-      status: "open",
-    },
-    {
-      id: 2,
-      type: "appointment",
-      title: "Appointment scheduled",
-      description: "Meeting with Dr. Smith tomorrow at 2 PM",
-      time: "1 hour ago",
-      status: "scheduled",
-    },
-    {
-      id: 3,
-      type: "message",
-      title: "New message received",
-      description: "Response to your academic inquiry",
-      time: "3 hours ago",
-      status: "unread",
-    },
-  ]
+  const getRecentActivity = () => {
+    return dashboardData?.recentActivity || []
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -171,19 +203,25 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {recentActivity.map((activity) => (
-                    <div key={activity.id} className="flex items-start space-x-4">
-                      <div className="w-2 h-2 bg-primary rounded-full mt-2" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium">{activity.title}</p>
-                        <p className="text-sm text-muted-foreground">{activity.description}</p>
-                        <p className="text-xs text-muted-foreground mt-1">{activity.time}</p>
+                  {getRecentActivity().length > 0 ? (
+                    getRecentActivity().map((activity: any) => (
+                      <div key={activity.id} className="flex items-start space-x-4">
+                        <div className="w-2 h-2 bg-primary rounded-full mt-2" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">{activity.title}</p>
+                          <p className="text-sm text-muted-foreground">{activity.description}</p>
+                          <p className="text-xs text-muted-foreground mt-1">{activity.time}</p>
+                        </div>
+                        <Badge variant="outline" className="text-xs">
+                          {activity.status}
+                        </Badge>
                       </div>
-                      <Badge variant="outline" className="text-xs">
-                        {activity.status}
-                      </Badge>
+                    ))
+                  ) : (
+                    <div className="text-center py-8">
+                      <p className="text-sm text-muted-foreground">No recent activity</p>
                     </div>
-                  ))}
+                  )}
                 </div>
               </CardContent>
             </Card>
