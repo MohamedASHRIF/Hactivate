@@ -13,6 +13,8 @@ import {
   SelectValue
 } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { DEPARTMENT_OPTIONS } from "@/lib/constants/departments"
 
 // Constants
 const TARGET_AUDIENCES = {
@@ -48,15 +50,18 @@ type AnnouncementCategory = typeof ANNOUNCEMENT_CATEGORIES[keyof typeof ANNOUNCE
 interface CreateAnnouncementFormProps {
   onSubmit: (data: any) => Promise<void>
   userRole?: "student" | "lecturer" | "admin"
+  userDepartment?: string
 }
 
 // Component
-export default function CreateAnnouncementForm({ onSubmit, userRole }: CreateAnnouncementFormProps) {
+export default function CreateAnnouncementForm({ onSubmit, userRole, userDepartment }: CreateAnnouncementFormProps) {
   const [formData, setFormData] = useState({
     title: "",
     content: "",
     category: "",
     targetAudience: userRole === "lecturer" ? ["student"] : [] as string[],
+    isDepartmentSpecific: false,
+    targetDepartments: [] as string[],
     isPinned: false,
     expiresAt: "",
   })
@@ -87,6 +92,12 @@ export default function CreateAnnouncementForm({ onSubmit, userRole }: CreateAnn
       return
     }
 
+    // For lecturers and admins, if department-specific is selected, ensure at least one department is selected
+    if ((userRole === "lecturer" || userRole === "admin") && formData.isDepartmentSpecific && formData.targetDepartments.length === 0) {
+      alert("Please select at least one department")
+      return
+    }
+
     setIsSubmitting(true)
 
     try {
@@ -96,6 +107,8 @@ export default function CreateAnnouncementForm({ onSubmit, userRole }: CreateAnn
         content: "",
         category: "",
         targetAudience: userRole === "lecturer" ? ["student"] : [],
+        isDepartmentSpecific: false,
+        targetDepartments: [],
         isPinned: false,
         expiresAt: "",
       })
@@ -120,8 +133,30 @@ export default function CreateAnnouncementForm({ onSubmit, userRole }: CreateAnn
     }
   }
 
+  const handleDepartmentChange = (department: string, checked: boolean) => {
+    if (checked) {
+      setFormData({
+        ...formData,
+        targetDepartments: [...formData.targetDepartments, department]
+      })
+    } else {
+      setFormData({
+        ...formData,
+        targetDepartments: formData.targetDepartments.filter((d) => d !== department)
+      })
+    }
+  }
+
+  const handleDepartmentSpecificChange = (checked: boolean) => {
+    setFormData({
+      ...formData,
+      isDepartmentSpecific: checked,
+      targetDepartments: checked ? (userDepartment ? [userDepartment] : []) : []
+    })
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto">
       {/* Title */}
       <div className="space-y-2">
         <Label htmlFor="title">Title</Label>
@@ -180,7 +215,65 @@ export default function CreateAnnouncementForm({ onSubmit, userRole }: CreateAnn
             Lecturers can only post announcements to students
           </p>
         )}
+        {userRole === "admin" && (
+          <p className="text-sm text-muted-foreground mt-2">
+            Admins can target any combination of students, lecturers, and administrators
+          </p>
+        )}
       </div>
+
+      {/* Department Selection for Lecturers and Admins */}
+      {(userRole === "lecturer" || userRole === "admin") && (
+        <div className="space-y-2">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="departmentSpecific"
+              checked={formData.isDepartmentSpecific}
+              onCheckedChange={(checked) => handleDepartmentSpecificChange(checked as boolean)}
+            />
+            <Label htmlFor="departmentSpecific" className="text-sm font-medium">
+              Target specific departments
+            </Label>
+          </div>
+          
+          {formData.isDepartmentSpecific && (
+            <div className="space-y-3 ml-6">
+              <p className="text-sm text-muted-foreground">
+                {userRole === "lecturer" 
+                  ? "Select which departments should receive this announcement:"
+                  : "Select which departments should receive this announcement (leave empty for all departments):"
+                }
+              </p>
+              <ScrollArea className="h-32 border rounded-md p-3">
+                <div className="grid grid-cols-1 gap-2">
+                  {DEPARTMENT_OPTIONS.map((department) => (
+                    <div key={department.value} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={department.value}
+                        checked={formData.targetDepartments.includes(department.value)}
+                        onCheckedChange={(checked) => handleDepartmentChange(department.value, checked as boolean)}
+                      />
+                      <Label htmlFor={department.value} className="text-sm">
+                        {department.label}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+              {userRole === "lecturer" && userDepartment && (
+                <p className="text-xs text-muted-foreground">
+                  Your department ({userDepartment}) is automatically selected
+                </p>
+              )}
+              {userRole === "admin" && (
+                <p className="text-xs text-muted-foreground">
+                  If no departments are selected, the announcement will be sent to all departments
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Content */}
       <div className="space-y-2">
@@ -216,17 +309,19 @@ export default function CreateAnnouncementForm({ onSubmit, userRole }: CreateAnn
         />
       </div>
 
-      {/* Submit Button */}
-      <Button type="submit" className="w-full" disabled={isSubmitting}>
-        {isSubmitting ? (
-          <>
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-            Creating...
-          </>
-        ) : (
-          "Create Announcement"
-        )}
-      </Button>
+      {/* Submit Button - Fixed at bottom */}
+      <div className="sticky bottom-0 bg-background pt-4 border-t">
+        <Button type="submit" className="w-full" disabled={isSubmitting}>
+          {isSubmitting ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+              Creating...
+            </>
+          ) : (
+            "Create Announcement"
+          )}
+        </Button>
+      </div>
     </form>
   )
 }
