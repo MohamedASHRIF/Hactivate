@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2, GraduationCap, Eye, EyeOff, Mail, Lock, User, Building, Sparkles, Users, BookOpen, Shield, CheckCircle } from "lucide-react"
+import { DEPARTMENT_OPTIONS } from "@/lib/constants/departments"
 
 export default function SignupPage() {
   const [formData, setFormData] = useState({
@@ -237,18 +238,20 @@ export default function SignupPage() {
                 
                 <div className="space-y-2">
                   <Label htmlFor="department" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Department
+                    Department {formData.role === "admin" && "(Optional for Administrators)"}
                   </Label>
-                  <div className="relative">
-                    <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                                         <Input
-                       id="department"
-                       placeholder="Computer Science"
-                       value={formData.department}
-                       onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                       className="pl-10 h-10 border-gray-200 dark:border-gray-600 focus:border-blue-500 focus:ring-blue-500"
-                     />
-                  </div>
+                  <Select onValueChange={(value) => setFormData({ ...formData, department: value })}>
+                    <SelectTrigger className="h-10 border-gray-200 dark:border-gray-600 focus:border-blue-500 focus:ring-blue-500">
+                      <SelectValue placeholder={formData.role === "admin" ? "Select department (optional)" : "Select your department"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DEPARTMENT_OPTIONS.map((department) => (
+                        <SelectItem key={department.value} value={department.value}>
+                          {department.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 
                 {formData.role === "student" && (
