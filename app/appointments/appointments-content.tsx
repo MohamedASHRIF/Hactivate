@@ -186,7 +186,45 @@ export default function AppointmentsContent() {
     duration: 30, // default duration in minutes
   })
 
-  // Remove end time logic, not needed with duration
+  // State for creating a time slot (lecturer)
+  const [slotForm, setSlotForm] = useState({
+    startTime: "",
+    endTime: "",
+  })
+  const [slotLoading, setSlotLoading] = useState(false)
+
+  const handleCreateSlot = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSlotLoading(true)
+    try {
+      // Validation: startTime in future, endTime after startTime
+      const start = new Date(slotForm.startTime)
+      const end = new Date(slotForm.endTime)
+      if (isNaN(start.getTime()) || isNaN(end.getTime()) || start < new Date() || end <= start) {
+        toast({ title: "Invalid time slot", description: "Please select a valid future start and end time.", variant: "destructive" })
+        setSlotLoading(false)
+        return
+      }
+      const res = await fetch("/api/timeslots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ startTime: start.toISOString(), endTime: end.toISOString() }),
+      })
+      if (res.ok) {
+        toast({ title: "Time slot created" })
+        setSlotForm({ startTime: "", endTime: "" })
+        setIsCreateSlotDialogOpen(false)
+        fetchTimeSlots()
+      } else {
+        const data = await res.json()
+        toast({ title: "Error", description: data.message || "Failed to create time slot", variant: "destructive" })
+      }
+    } catch (err) {
+      toast({ title: "Error", description: "Failed to create time slot", variant: "destructive" })
+    } finally {
+      setSlotLoading(false)
+    }
+  }
   const [bookingLoading, setBookingLoading] = useState(false)
 
   const handleBookAppointment = async (e: React.FormEvent) => {
@@ -266,7 +304,37 @@ export default function AppointmentsContent() {
                     <DialogTitle>Create New Time Slot</DialogTitle>
                     <DialogDescription>Add a new available time slot for students to book appointments.</DialogDescription>
                   </DialogHeader>
-                  {/* Time slot creation form would go here */}
+                  <form onSubmit={handleCreateSlot} className="space-y-4">
+                    <div className="flex gap-4">
+                      <div className="flex-1">
+                        <Label>Start Time</Label>
+                        <Input
+                          type="datetime-local"
+                          value={slotForm.startTime}
+                          min={(() => {
+                            const d = new Date();
+                            const pad = (n: number) => n.toString().padStart(2, '0');
+                            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                          })()}
+                          onChange={e => setSlotForm(f => ({ ...f, startTime: e.target.value }))}
+                          required
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <Label>End Time</Label>
+                        <Input
+                          type="datetime-local"
+                          value={slotForm.endTime}
+                          min={slotForm.startTime || undefined}
+                          onChange={e => setSlotForm(f => ({ ...f, endTime: e.target.value }))}
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end">
+                      <Button type="submit" disabled={slotLoading}>{slotLoading ? "Creating..." : "Create Slot"}</Button>
+                    </div>
+                  </form>
                 </DialogContent>
               </Dialog>
             )}
@@ -281,22 +349,55 @@ export default function AppointmentsContent() {
                 <DialogContent className="max-w-4xl">
                   <DialogHeader>
                     <DialogTitle>Book New Appointment</DialogTitle>
-                    <DialogDescription>Choose an available time slot and provide appointment details.</DialogDescription>
+                    <DialogDescription>Select a lecturer to view their free time slots and book an appointment.</DialogDescription>
                   </DialogHeader>
-                  <form onSubmit={handleBookAppointment} className="space-y-4">
-                    <div>
-                      <Label>Lecturer</Label>
-                      <Select value={bookingForm.lecturerId} onValueChange={v => setBookingForm(f => ({ ...f, lecturerId: v }))}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select Lecturer" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {lecturers.map(l => (
-                            <SelectItem key={l._id} value={l._id}>{l.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                  <div className="mb-4">
+                    <Label>Lecturer</Label>
+                    <Select value={bookingForm.lecturerId} onValueChange={v => setBookingForm(f => ({ ...f, lecturerId: v }))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select Lecturer" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {lecturers.map(l => (
+                          <SelectItem key={l._id} value={l._id}>{l.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {bookingForm.lecturerId && (
+                    <div className="mb-4">
+                      <Label>Available Time Slots</Label>
+                      <ScrollArea className="h-40 border rounded p-2 mt-2">
+                        {availableSlots.filter(slot => slot.lecturerId === bookingForm.lecturerId && new Date(slot.startTime) > new Date()).length === 0 ? (
+                          <div className="text-muted-foreground text-sm">No upcoming slots for this lecturer.</div>
+                        ) : (
+                          availableSlots
+                            .filter(slot => slot.lecturerId === bookingForm.lecturerId && new Date(slot.startTime) > new Date())
+                            .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+                            .map(slot => (
+                              <div key={slot.id} className="flex items-center justify-between border-b py-2 last:border-b-0">
+                                <div>
+                                  <span className="font-medium">{formatDate(slot.startTime)}</span>
+                                  <span className="ml-2 text-muted-foreground">{formatTime(slot.startTime)} - {formatTime(slot.endTime)}</span>
+                                </div>
+                                <Button size="sm" variant="outline" onClick={() => setBookingForm(f => ({
+                                  ...f,
+                                  startTime: (() => {
+                                    const d = typeof slot.startTime === "string" ? new Date(slot.startTime) : slot.startTime;
+                                    // Format to yyyy-MM-ddTHH:mm in local time
+                                    const pad = (n: number) => n.toString().padStart(2, '0');
+                                    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                                  })()
+                                }))}>
+                                  Select
+                                </Button>
+                              </div>
+                            ))
+                        )}
+                      </ScrollArea>
                     </div>
+                  )}
+                  <form onSubmit={handleBookAppointment} className="space-y-4">
                     <div className="flex gap-4">
                       <div className="flex-1">
                         <Label>Start Time</Label>
@@ -352,58 +453,46 @@ export default function AppointmentsContent() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Calendar and Available Slots */}
-          <Card className="lg:col-span-1">
-            <CardHeader>
-              <CardTitle>Calendar</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Calendar 
-                mode="single" 
-                selected={selectedDate} 
-                onSelect={(date) => date && setSelectedDate(date)} 
-                className="rounded-md border" 
-              />
-              
-              <div className="mt-6">
-                <h3 className="font-semibold mb-4">Available Slots</h3>
-                <ScrollArea className="h-48">
-                  <div className="space-y-2">
-                    {availableSlots
-                      .filter((slot) => {
-                        const slotDate = typeof slot.startTime === "string" ? new Date(slot.startTime) : slot.startTime
-                        return slotDate.toDateString() === selectedDate.toDateString()
-                      })
-                      .map((slot) => (
-                        <div key={slot.id} className="p-3 border rounded-lg bg-green-50 dark:bg-green-900/10">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium">{slot.lecturerName}</p>
-                              <p className="text-sm text-muted-foreground">
-                                {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
-                              </p>
+          {/* Calendar and Available Slots (Lecturer only) */}
+          {user?.role === "lecturer" && (
+            <Card className="lg:col-span-1">
+              <CardHeader>
+                <CardTitle>Calendar</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Calendar 
+                  mode="single" 
+                  selected={selectedDate} 
+                  onSelect={(date) => date && setSelectedDate(date)} 
+                  className="rounded-md border" 
+                />
+                <div className="mt-6">
+                  <h3 className="font-semibold mb-4">Available Slots</h3>
+                  <ScrollArea className="h-48">
+                    <div className="space-y-2">
+                      {availableSlots
+                        .filter((slot) => {
+                          const slotDate = typeof slot.startTime === "string" ? new Date(slot.startTime) : slot.startTime;
+                          return slotDate.toDateString() === selectedDate.toDateString() && slot.lecturerId === String(user._id);
+                        })
+                        .map((slot) => (
+                          <div key={slot.id} className="p-3 border rounded-lg bg-green-50 dark:bg-green-900/10">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="font-medium">{slot.lecturerName}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
+                                </p>
+                              </div>
                             </div>
-                            {user?.role === "student" && (
-                              <Button size="sm" onClick={() => {
-                                setBookingForm(f => ({
-                                  ...f,
-                                  lecturerId: slot.lecturerId,
-                                  startTime: typeof slot.startTime === "string" ? (slot.startTime as string).substring(0, 16) : new Date(slot.startTime as any).toISOString().substring(0, 16),
-                                  endTime: typeof slot.endTime === "string" ? (slot.endTime as string).substring(0, 16) : new Date(slot.endTime as any).toISOString().substring(0, 16),
-                                }))
-                                setIsBookingDialogOpen(true)
-                              }}>
-                                Book
-                              </Button>
-                            )}
                           </div>
-                        </div>
-                      ))}
-                  </div>
-                </ScrollArea>
-              </div>
-            </CardContent>
-          </Card>
+                        ))}
+                    </div>
+                  </ScrollArea>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Appointments List */}
           <Card className="lg:col-span-2">
