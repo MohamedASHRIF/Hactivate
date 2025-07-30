@@ -211,7 +211,7 @@ export default function AppointmentsContent() {
       case "scheduled":
         return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
       case "completed":
-        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+        return "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
       case "cancelled":
         return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
       case "rescheduled":
@@ -687,11 +687,18 @@ if (!user) return null
                   <div className="space-y-4">
                     {appointments.map((appointment) => {
                       const isStudent = user?.role === "student";
-                      const isUpcoming = new Date(appointment.startTime) > new Date();
-                      const canCancel = isStudent && isUpcoming && appointment.status === "pending";
-                      const canDelete = ["cancelled", "rejected"].includes(appointment.status);
-                      const canReschedule = user?.role === "lecturer" && appointment.status === "accepted";
-                      const canStudentRespondReschedule = user?.role === "student" && appointment.status === "rescheduled";
+                      const now = new Date();
+                      const endTime = new Date(appointment.endTime);
+                      // If appointment is not completed and endTime is in the past, mark as completed (frontend only)
+                      let status = appointment.status;
+                      if (status !== "completed" && endTime < now) {
+                        status = "completed";
+                      }
+                      const isUpcoming = new Date(appointment.startTime) > now;
+                      const canCancel = isStudent && isUpcoming && status === "pending";
+                      const canDelete = ["cancelled", "rejected", "completed"].includes(status);
+                      const canReschedule = user?.role === "lecturer" && status === "accepted";
+                      const canStudentRespondReschedule = user?.role === "student" && status === "rescheduled";
                       // Use _id if present, else fallback to id, and always extract string if $oid
                       let appointmentId: string = "";
                       if (appointment._id) {
@@ -729,8 +736,8 @@ if (!user) return null
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-2">
                                 <h3 className="font-semibold">{appointment.title}</h3>
-                                <Badge className={getStatusColor(appointment.status)}>
-                                  {appointment.status}
+                                <Badge className={getStatusColor(status)}>
+                                  {status}
                                 </Badge>
                               </div>
                               {appointment.description && (
