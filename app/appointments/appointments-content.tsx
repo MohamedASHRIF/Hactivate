@@ -514,39 +514,26 @@ export default function AppointmentsContent() {
                           const slotDate = typeof slot.startTime === "string" ? new Date(slot.startTime) : slot.startTime;
                           return slotDate.toDateString() === selectedDate.toDateString() && slot.lecturerId === String(user._id);
                         })
-                        .map((slot) => (
-                          <div key={slot.id} className="p-3 border rounded-lg bg-green-50 dark:bg-green-900/10 flex items-center justify-between">
-                            <div>
-                              <p className="font-medium">{slot.lecturerName}</p>
-                              <p className="text-sm text-muted-foreground">
-                                {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
-                              </p>
+                        .map((slot) => {
+                          // Use slot._id if present, else fallback to slot.id
+                          const slotKey = (slot as any)._id || slot.id;
+                          return (
+                            <div key={slotKey} className="p-3 border rounded-lg bg-green-50 dark:bg-green-900/10 flex items-center justify-between">
+                              <div>
+                                <p className="font-medium">{slot.lecturerName}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
+                                </p>
+                              </div>
+                              <Button size="icon" variant="ghost" className="ml-2" onClick={() => { console.log('Delete slot clicked:', slotKey); setSlotToDelete(String(slotKey)); }} disabled={slotDeleteLoading === slotKey}>
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
                             </div>
-                            <Button size="icon" variant="ghost" className="ml-2" onClick={() => setSlotToDelete(slot.id)} disabled={slotDeleteLoading === slot.id}>
-                              {slotDeleteLoading === slot.id ? <Loader2 className="animate-spin w-4 h-4" /> : <Trash2 className="w-4 h-4" />}
-                            </Button>
-                          </div>
-                        ))}
+                          );
+                        })}
                     </div>
                   </ScrollArea>
                 </div>
-                {/* Delete confirmation dialog */}
-                {slotToDelete && (
-                  <Dialog open={!!slotToDelete} onOpenChange={() => setSlotToDelete(null)}>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Delete Slot?</DialogTitle>
-                        <DialogDescription>Are you sure you want to delete this slot? This action cannot be undone.</DialogDescription>
-                      </DialogHeader>
-                      <div className="flex justify-end gap-2 mt-4">
-                        <Button variant="outline" onClick={() => setSlotToDelete(null)}>Cancel</Button>
-                        <Button variant="destructive" onClick={() => handleDeleteSlot(slotToDelete!)} disabled={slotDeleteLoading === slotToDelete}>
-                          {slotDeleteLoading === slotToDelete ? <Loader2 className="animate-spin w-4 h-4" /> : "Delete"}
-                        </Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                )}
               </CardContent>
             </Card>
           )}
@@ -643,6 +630,24 @@ export default function AppointmentsContent() {
             </CardContent>
           </Card>
         </div>
+        {/* Delete confirmation dialog rendered at the top level */}
+        {user?.role === "lecturer" && (
+          <Dialog open={!!slotToDelete} onOpenChange={(open) => { if (!open) setSlotToDelete(null); }}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Delete Slot?</DialogTitle>
+                <DialogDescription>Are you sure you want to delete this slot? This action cannot be undone.</DialogDescription>
+              </DialogHeader>
+              <div className="text-xs text-muted-foreground mb-2">slotToDelete: {slotToDelete || "(none)"}</div>
+              <div className="flex justify-end gap-2 mt-4">
+                <Button variant="outline" onClick={() => setSlotToDelete(null)}>Cancel</Button>
+                <Button variant="destructive" onClick={() => slotToDelete && handleDeleteSlot(slotToDelete)} disabled={slotDeleteLoading === slotToDelete}>
+                  {slotDeleteLoading === slotToDelete ? <Loader2 className="animate-spin w-4 h-4" /> : "Delete"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
     </main>
   )
