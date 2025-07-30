@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getDatabase } from "@/lib/mongodb"
 import { ObjectId } from "mongodb"
 import jwt from "jsonwebtoken"
+import bcrypt from "bcryptjs"
 
 // GET: List all users (admin only)
 export async function GET(request: NextRequest) {
@@ -23,6 +24,66 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(users)
   } catch (error) {
     console.error("List users error:", error)
+    return NextResponse.json({ message: "Internal server error" }, { status: 500 })
+  }
+}
+
+// POST: Create new user (admin only)
+export async function POST(request: NextRequest) {
+  try {
+    const token = request.cookies.get("token")?.value
+    if (!token) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
+    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "fallback-secret") as any
+    if (decoded.role !== "admin") {
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 })
+    }
+    
+    const { fullName, email, password, role, department, studentId } = await request.json()
+    
+    if (!fullName || !email || !password || !role) {
+      return NextResponse.json({ message: "Full name, email, password, and role are required" }, { status: 400 })
+    }
+    
+    if (!["student", "lecturer"].includes(role)) {
+      return NextResponse.json({ message: "Role must be either 'student' or 'lecturer'" }, { status: 400 })
+    }
+    
+    const db = await getDatabase()
+    
+    // Check if user already exists
+    const existingUser = await db.collection("users").findOne({ email })
+    if (existingUser) {
+      return NextResponse.json({ message: "User already exists with this email" }, { status: 409 })
+    }
+    
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 12)
+    
+    // Create user object
+    const newUser = {
+      fullName,
+      email,
+      password: hashedPassword,
+      role,
+      department: department || null,
+      studentId: studentId || null,
+      avatar: null,
+      isOnline: false,
+      lastSeen: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }
+    
+    const result = await db.collection("users").insertOne(newUser)
+    
+    return NextResponse.json({ 
+      message: "User created successfully", 
+      userId: result.insertedId 
+    }, { status: 201 })
+  } catch (error) {
+    console.error("Create user error:", error)
     return NextResponse.json({ message: "Internal server error" }, { status: 500 })
   }
 }

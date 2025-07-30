@@ -51,13 +51,16 @@ export default function DashboardPage() {
           break
         case 'view-contacts':
           if (user.role === 'admin') {
-            router.push('/users')
+            router.push('/admin/users')
           } else {
             router.push('/appointments')
           }
           break
         case 'analytics':
           router.push('/dashboard/analytics')
+          break
+        case 'user-management':
+          router.push('/admin/users')
           break
         case 'announcements':
           router.push('/announcements?action=new')
