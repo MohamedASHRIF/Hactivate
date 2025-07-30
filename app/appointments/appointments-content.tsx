@@ -1,3 +1,4 @@
+
 "use client"
 
 import type React from "react"
@@ -59,6 +60,34 @@ interface LecturerOption {
 }
 
 export default function AppointmentsContent() {
+  // Student cancels their own appointment
+  async function handleCancelAppointment(appointmentId: string) {
+    setCancelLoading(true);
+    try {
+      const res = await fetch("/api/appointments", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appointmentId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: "Appointment cancelled", description: data.message });
+        fetchAppointments();
+      } else {
+        toast({ title: "Error", description: data.message || "Failed to cancel appointment", variant: "destructive" });
+      }
+    } catch (err) {
+      toast({ title: "Error", description: "Failed to cancel appointment", variant: "destructive" });
+    } finally {
+      setCancelLoading(false);
+      setAppointmentToCancel(null);
+      setCancelDialogOpen(false);
+    }
+  }
+  // State for student appointment cancellation dialog
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [appointmentToCancel, setAppointmentToCancel] = useState<string | null>(null);
+  const [cancelLoading, setCancelLoading] = useState(false);
 
   // State and handler for slot deletion (lecturer)
   const [slotDeleteLoading, setSlotDeleteLoading] = useState<string | null>(null)
@@ -563,73 +592,100 @@ export default function AppointmentsContent() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {appointments.map((appointment) => (
-                      <div key={appointment._id} className="p-4 border rounded-lg">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <h3 className="font-semibold">{appointment.title}</h3>
-                              <Badge className={getStatusColor(appointment.status)}>
-                                {appointment.status}
-                              </Badge>
-                            </div>
-                            {appointment.description && (
-                              <p className="text-sm text-muted-foreground mb-3">{appointment.description}</p>
-                            )}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                              <div className="flex items-center gap-2">
-                                <User className="h-4 w-4 text-muted-foreground" />
-                                <span>{user?.role === "student" ? appointment.lecturerName : appointment.studentName}</span>
+                    {appointments.map((appointment) => {
+                      const isStudent = user?.role === "student";
+                      const isUpcoming = new Date(appointment.startTime) > new Date();
+                      const canCancel = isStudent && isUpcoming && appointment.status === "pending";
+                      return (
+                        <div key={appointment._id} className="p-4 border rounded-lg">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <h3 className="font-semibold">{appointment.title}</h3>
+                                <Badge className={getStatusColor(appointment.status)}>
+                                  {appointment.status}
+                                </Badge>
                               </div>
-                              <div className="flex items-center gap-2">
-                                <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                                <span>{formatDate(appointment.startTime)}</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Clock className="h-4 w-4 text-muted-foreground" />
-                                <span>
-                                  {formatTime(appointment.startTime)} - {formatTime(appointment.endTime)}
-                                </span>
-                              </div>
-                              {appointment.location && (
+                              {appointment.description && (
+                                <p className="text-sm text-muted-foreground mb-3">{appointment.description}</p>
+                              )}
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                                 <div className="flex items-center gap-2">
-                                  <MapPin className="h-4 w-4 text-muted-foreground" />
-                                  <span>{appointment.location}</span>
+                                  <User className="h-4 w-4 text-muted-foreground" />
+                                  <span>{isStudent ? appointment.lecturerName : appointment.studentName}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                                  <span>{formatDate(appointment.startTime)}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Clock className="h-4 w-4 text-muted-foreground" />
+                                  <span>
+                                    {formatTime(appointment.startTime)} - {formatTime(appointment.endTime)}
+                                  </span>
+                                </div>
+                                {appointment.location && (
+                                  <div className="flex items-center gap-2">
+                                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                                    <span>{appointment.location}</span>
+                                  </div>
+                                )}
+                                {appointment.meetingLink && (
+                                  <div className="flex items-center gap-2">
+                                    <Video className="h-4 w-4 text-muted-foreground" />
+                                    <a href={appointment.meetingLink} className="text-blue-600 hover:underline">
+                                      Join Meeting
+                                    </a>
+                                  </div>
+                                )}
+                              </div>
+                              {appointment.notes && (
+                                <div className="mt-3 p-2 bg-muted rounded text-sm">
+                                  <p className="font-medium">Notes:</p>
+                                  <p>{appointment.notes}</p>
                                 </div>
                               )}
-                              {appointment.meetingLink && (
-                                <div className="flex items-center gap-2">
-                                  <Video className="h-4 w-4 text-muted-foreground" />
-                                  <a href={appointment.meetingLink} className="text-blue-600 hover:underline">
-                                    Join Meeting
-                                  </a>
+                              {/* Lecturer: Accept/Reject for pending appointments */}
+                              {user?.role === "lecturer" && appointment.status === "pending" && (
+                                <div className="mt-3 flex gap-2">
+                                  <Button size="sm" variant="default" onClick={() => handleAppointmentAction(appointment._id as string, "accept")}>Accept</Button>
+                                  <Button size="sm" variant="destructive" onClick={() => handleAppointmentAction(appointment._id as string, "reject")}>Reject</Button>
+                                </div>
+                              )}
+                              {/* Student: Cancel button for upcoming appointments */}
+                              {canCancel && (
+                                <div className="mt-3 flex gap-2">
+                                  <Button size="sm" variant="destructive" onClick={() => { setAppointmentToCancel(appointment._id as string); setCancelDialogOpen(true); }}>
+                                    Cancel Appointment
+                                  </Button>
                                 </div>
                               )}
                             </div>
-                            {appointment.notes && (
-                              <div className="mt-3 p-2 bg-muted rounded text-sm">
-                                <p className="font-medium">Notes:</p>
-                                <p>{appointment.notes}</p>
-                              </div>
-                            )}
-                            {/* Lecturer: Accept/Reject for pending appointments */}
-                            {user?.role === "lecturer" && appointment.status === "pending" && (
-                              <div className="mt-3 flex gap-2">
-                                <Button size="sm" variant="default" onClick={() => handleAppointmentAction(appointment._id as string, "accept")}>Accept</Button>
-                                <Button size="sm" variant="destructive" onClick={() => handleAppointmentAction(appointment._id as string, "reject")}>Reject</Button>
-                              </div>
-                            )}
                           </div>
-                          {/* Optionally, edit/delete buttons for future use */}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </ScrollArea>
             </CardContent>
           </Card>
         </div>
+        {/* Student appointment cancellation dialog */}
+        <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Cancel Appointment?</DialogTitle>
+              <DialogDescription>Are you sure you want to cancel this appointment? This action cannot be undone.</DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => setCancelDialogOpen(false)}>No, keep it</Button>
+              <Button variant="destructive" onClick={() => appointmentToCancel && handleCancelAppointment(appointmentToCancel)} disabled={cancelLoading}>
+                {cancelLoading ? <Loader2 className="animate-spin w-4 h-4" /> : "Yes, cancel"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
         {/* Delete confirmation dialog rendered at the top level */}
         {user?.role === "lecturer" && (
           <Dialog open={!!slotToDelete} onOpenChange={(open) => { if (!open) setSlotToDelete(null); }}>
