@@ -1,91 +1,56 @@
-import { NextRequest, NextResponse } from "next/server"
-import { getDatabase } from "@/lib/mongodb"
-import jwt from "jsonwebtoken"
-import { ObjectId } from "mongodb"
+
+// app/api/tickets/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import clientPromise from "@/lib/mongodb";
+import mongoose from "mongoose";
+import Ticket from "@/lib/models/Ticket";
+
+
+
+async function dbConnect() {
+	await clientPromise; // already connected via MongoClient
+	if (mongoose.connection.readyState >= 1) return;
+
+	return mongoose.connect(`${process.env.MONGODB_URI}/uniconnect`);
+}
 
 export async function GET(request: NextRequest) {
-  try {
-    const token = request.cookies.get("token")?.value
-    if (!token) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
-    }
+	await dbConnect();
+	const url = new URL(request.url);
+	const userName = url.searchParams.get("userName");
+	if (!userName) return NextResponse.json({ error: "Missing userName" }, { status: 400 });
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "fallback-secret") as any
-    const db = await getDatabase()
-
-    // Get tickets based on user role
-    let query = {}
-    if (decoded.role === "student") {
-      query = { studentId: new ObjectId(decoded.userId) }
-    } else if (decoded.role === "lecturer") {
-      query = { assignedTo: new ObjectId(decoded.userId) }
-    }
-    // Admin can see all tickets
-
-    const tickets = await db.collection("tickets").find(query).sort({ createdAt: -1 }).toArray()
-
-    // Populate user names
-    const ticketsWithUsers = await Promise.all(
-      tickets.map(async (ticket) => {
-        const student = await db.collection("users").findOne({ _id: ticket.studentId })
-        const assignedUser = ticket.assignedTo ? await db.collection("users").findOne({ _id: ticket.assignedTo }) : null
-
-        return {
-          ...ticket,
-          studentName: student?.name || "Unknown",
-          assignedToName: assignedUser?.name || null,
-        }
-      }),
-    )
-
-    return NextResponse.json(ticketsWithUsers)
-  } catch (error) {
-    console.error("Get tickets error:", error)
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 })
-  }
+	const tickets = await Ticket.find({ studentName: userName }).lean();
+	return NextResponse.json(tickets);
 }
 
 export async function POST(request: NextRequest) {
-  try {
-    const token = request.cookies.get("token")?.value
-    if (!token) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
-    }
+	await dbConnect();
+	const data = await request.json();
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "fallback-secret") as any
-    const { title, description, category, priority } = await request.json()
+	if (
+		!data.title ||
+		!data.description ||
+		!data.category ||
+		!data.priority ||
+		!data.studentName
+	) {
+		return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+	}
 
-    if (!title || !description || !category || !priority) {
-      return NextResponse.json({ message: "All fields are required" }, { status: 400 })
-    }
+	const newTicket = await Ticket.create({
+		title: data.title,
+		description: data.description,
+		category: data.category,
+		priority: data.priority,
+		status: "open",
+		studentName: data.studentName,
+		createdAt: new Date(),
+		updatedAt: new Date(),
+		replies: [],
+	});
 
-    const db = await getDatabase()
-
-    const newTicket = {
-      studentId: new ObjectId(decoded.userId),
-      title,
-      description,
-      category,
-      priority,
-      status: "open",
-      replies: [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }
-
-    const result = await db.collection("tickets").insertOne(newTicket)
-
-    return NextResponse.json(
-      {
-        message: "Ticket created successfully",
-        ticketId: result.insertedId,
-      },
-      { status: 201 },
-    )
-  } catch (error) {
-    console.error("Create ticket error:", error)
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 })
-  }
+	return NextResponse.json(newTicket, { status: 201 });
 }
 
 // PATCH: Update ticket (admin only, assign/escalate)
