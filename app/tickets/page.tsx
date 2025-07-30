@@ -35,6 +35,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
+
 import {
 	Plus,
 	Search,
@@ -47,6 +48,9 @@ import {
 	Send,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+// Force dynamic rendering for this page
+export const dynamic = 'force-dynamic'
 
 interface Ticket {
 	id?: string;
@@ -61,6 +65,7 @@ interface Ticket {
 	createdAt: string;
 	updatedAt: string;
 	replies: TicketReply[];
+
 }
 
 interface TicketReply {

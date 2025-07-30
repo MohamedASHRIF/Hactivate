@@ -1,4 +1,4 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { getDatabase } from "@/lib/mongodb"
 import jwt from "jsonwebtoken"
 import { ObjectId } from "mongodb"
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     await db.collection("tickets").updateOne(
       { _id: new ObjectId(params.id) },
       {
-        $push: { replies: reply },
+        $push: { replies: reply } as any,
         $set: {
           updatedAt: new Date(),
           status: "in-progress",
