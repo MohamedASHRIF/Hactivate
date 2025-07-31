@@ -1,4 +1,3 @@
-
 "use client"
 
 import type React from "react"
@@ -24,7 +23,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import { useSearchParams } from "next/navigation"
-import { Plus, CalendarIcon, Clock, User, Video, MapPin, Edit, Trash2, Loader2 } from "lucide-react"
+import { Plus, CalendarIcon, Clock, User, Video, MapPin, Edit, Trash2, Loader2, CheckCircle, XCircle, AlertCircle, Calendar as CalendarLarge, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface Appointment {
@@ -43,7 +42,6 @@ interface Appointment {
   notes?: string
 }
 
-
 interface TimeSlot {
   id: string
   lecturerId: string
@@ -52,7 +50,6 @@ interface TimeSlot {
   endTime: Date | string
   isAvailable: boolean
 }
-
 
 interface LecturerOption {
   _id: string
@@ -63,6 +60,7 @@ export default function AppointmentsContent() {
   // State for booking confirmation dialog
   const [confirmBookingDialogOpen, setConfirmBookingDialogOpen] = useState(false);
   const [pendingBookingForm, setPendingBookingForm] = useState<typeof bookingForm | null>(null);
+  
   // Student cancels their own appointment
   async function handleCancelAppointment(appointmentId: string) {
     setCancelLoading(true);
@@ -87,6 +85,7 @@ export default function AppointmentsContent() {
       setCancelDialogOpen(false);
     }
   }
+  
   // State for student appointment cancellation dialog
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [appointmentToCancel, setAppointmentToCancel] = useState<string | null>(null);
@@ -117,8 +116,6 @@ export default function AppointmentsContent() {
       setSlotToDelete(null)
     }
   }
-  
-
 
   const { user } = useAuth()
   const { toast } = useToast()
@@ -203,21 +200,40 @@ export default function AppointmentsContent() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "pending":
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+        return "bg-yellow-50 text-amber-700 border-amber-200 dark:bg-yellow-900/20 dark:text-amber-300 dark:border-amber-800"
       case "accepted":
-        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+        return "bg-green-50 text-emerald-700 border-emerald-200 dark:bg-green-900/20 dark:text-emerald-300 dark:border-emerald-800"
       case "rejected":
-        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+        return "bg-rose-50 text-red-700 border-red-200 dark:bg-rose-900/20 dark:text-red-300 dark:border-red-800"
       case "scheduled":
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+        return "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800"
       case "completed":
-        return "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+        return "bg-violet-50 text-purple-700 border-purple-200 dark:bg-violet-900/20 dark:text-purple-300 dark:border-purple-800"
       case "cancelled":
-        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+        return "bg-slate-50 text-gray-700 border-gray-200 dark:bg-slate-900/20 dark:text-gray-300 dark:border-gray-800"
       case "rescheduled":
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+        return "bg-amber-50 text-orange-700 border-orange-200 dark:bg-amber-900/20 dark:text-orange-300 dark:border-orange-800"
       default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200"
+        return "bg-slate-50 text-gray-700 border-gray-200 dark:bg-slate-900/20 dark:text-gray-300 dark:border-gray-800"
+    }
+  }
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "pending":
+        return <AlertCircle className="h-3 w-3" />
+      case "accepted":
+      case "scheduled":
+        return <CheckCircle className="h-3 w-3" />
+      case "rejected":
+      case "cancelled":
+        return <XCircle className="h-3 w-3" />
+      case "completed":
+        return <CheckCircle className="h-3 w-3" />
+      case "rescheduled":
+        return <Clock className="h-3 w-3" />
+      default:
+        return <AlertCircle className="h-3 w-3" />
     }
   }
 
@@ -357,8 +373,6 @@ export default function AppointmentsContent() {
     }
   }
 
-
-
   // State for deleting cancelled appointments (must be before any early return)
   const [deleteAppointmentDialogOpen, setDeleteAppointmentDialogOpen] = useState(false);
   const [appointmentToDelete, setAppointmentToDelete] = useState<string | null>(null);
@@ -405,7 +419,7 @@ export default function AppointmentsContent() {
     }
   };
 
-if (!user) return null
+  if (!user) return null
 
   // Handler for deleting cancelled appointments (must be inside component to access toast/fetchAppointments)
   const handleDeleteAppointment = async (appointmentIdRaw: string | { $oid: string }) => {
@@ -439,439 +453,771 @@ if (!user) return null
     }
   };
 
-// AppointmentCalendar: highlights days with appointments for both students and lecturers
-function AppointmentCalendar({ appointments, selectedDate, setSelectedDate }: AppointmentCalendarProps) {
-  // Collect all appointment dates (startTime) as Date objects with time set to 00:00:00
-  const appointmentDays = appointments.map(a => {
-    const d = new Date(a.startTime);
-    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  });
-  // Create a Set of time values for fast lookup
-  const appointmentDaySet = new Set(appointmentDays.map(d => d.getTime()));
-  // Highlight days with appointments using modifiers
-  const modifiers = {
-    hasAppointment: (day: Date) => appointmentDaySet.has(new Date(day.getFullYear(), day.getMonth(), day.getDate()).getTime()),
-  };
-  const modifiersClassNames = {
-    hasAppointment: 'bg-primary/20 border-primary border-2 rounded-full text-primary font-bold',
-  };
+  // AppointmentCalendar: highlights days with appointments for both students and lecturers
+  function AppointmentCalendar({ appointments, selectedDate, setSelectedDate }: AppointmentCalendarProps) {
+    // Collect all appointment dates (startTime) as Date objects with time set to 00:00:00
+    const appointmentDays = appointments.map(a => {
+      const d = new Date(a.startTime);
+      return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    });
+    const appointmentDaySet = new Set(appointmentDays.map(d => d.getTime()));
 
-  // Find appointments for the selected date
-  const selectedDayAppointments = appointments.filter(a => {
-    const d = new Date(a.startTime);
-    return d.getFullYear() === selectedDate.getFullYear() &&
-      d.getMonth() === selectedDate.getMonth() &&
-      d.getDate() === selectedDate.getDate();
-  });
+    // For lecturers, also collect all their available slot dates
+    let slotDaySet = new Set<number>();
+    if (user?.role === "lecturer" && Array.isArray(availableSlots)) {
+      const slotDays = availableSlots
+        .filter(slot => slot.lecturerId === String(user._id))
+        .map(slot => {
+          const d = typeof slot.startTime === "string" ? new Date(slot.startTime) : slot.startTime;
+          return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        });
+      slotDaySet = new Set(slotDays.map(d => d.getTime()));
+    }
 
-  return (
-    <div>
-      <Calendar
-        mode="single"
-        selected={selectedDate}
-        onSelect={date => date && setSelectedDate(date)}
-        className="rounded-md border"
-        modifiers={modifiers}
-        modifiersClassNames={modifiersClassNames}
-      />
-      {/* Appointment details for selected date */}
-      <div className="mt-4">
-        {selectedDayAppointments.length === 0 ? (
-          <div className="text-muted-foreground text-sm text-center">No appointments for this day.</div>
-        ) : (
-          <div className="space-y-3">
-            {selectedDayAppointments.map((a, idx) => (
-              <div key={idx} className="p-3 border rounded-lg bg-muted">
-                <div className="font-semibold">{a.title}</div>
-                {a.description && <div className="text-sm text-muted-foreground mb-1">{a.description}</div>}
-                <div className="text-xs text-muted-foreground">
-                  Time: {new Date(a.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} - {new Date(a.endTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                </div>
-                {a.status && <div className="text-xs mt-1">Status: <span className="font-medium">{a.status}</span></div>}
-                {a.meetingLink && (
-                  <div className="text-xs mt-1">
-                    <a href={a.meetingLink} className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">Join Meeting</a>
-                  </div>
-                )}
-                {a.notes && (
-                  <div className="text-xs mt-1">Notes: {a.notes}</div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-// Interface for AppointmentCalendar props
-interface AppointmentCalendarProps {
-  appointments: Appointment[];
-  selectedDate: Date;
-  setSelectedDate: (date: Date) => void;
-}
+    // Highlight days with appointments and with free slots
+    const modifiers: Record<string, (day: Date) => boolean> = {
+      hasAppointment: (day: Date) => appointmentDaySet.has(new Date(day.getFullYear(), day.getMonth(), day.getDate()).getTime()),
+    };
+    if (user?.role === "lecturer") {
+      modifiers.hasSlot = (day: Date) => slotDaySet.has(new Date(day.getFullYear(), day.getMonth(), day.getDate()).getTime());
+    }
+    const modifiersClassNames: Record<string, string> = {
+      hasAppointment: 'bg-blue-500 text-white font-semibold rounded-full shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-105',
+      hasSlot: 'bg-green-200 text-green-900 font-semibold rounded-full border-2 border-green-400',
+    };
 
-  return (
-    <main className="p-6">
+    // Find appointments for the selected date
+    const selectedDayAppointments = appointments.filter(a => {
+      const d = new Date(a.startTime);
+      return d.getFullYear() === selectedDate.getFullYear() &&
+        d.getMonth() === selectedDate.getMonth() &&
+        d.getDate() === selectedDate.getDate();
+    });
+
+    return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Appointments</h1>
-            <p className="text-muted-foreground">Schedule and manage your appointments</p>
-          </div>
-          <div className="flex gap-2">
-            {user?.role === "lecturer" && (
-              <Dialog open={isCreateSlotDialogOpen} onOpenChange={setIsCreateSlotDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Create Time Slot
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Create New Time Slot</DialogTitle>
-                    <DialogDescription>Add a new available time slot for students to book appointments.</DialogDescription>
-                  </DialogHeader>
-                  <form onSubmit={handleCreateSlot} className="space-y-4">
-                    <div className="flex gap-4">
-                      <div className="flex-1">
-                        <Label>Start Time</Label>
-                        <Input
-                          type="datetime-local"
-                          value={slotForm.startTime}
-                          min={(() => {
-                            const d = new Date();
-                            const pad = (n: number) => n.toString().padStart(2, '0');
-                            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-                          })()}
-                          onChange={e => setSlotForm(f => ({ ...f, startTime: e.target.value }))}
-                          required
-                        />
+        <Calendar
+          mode="single"
+          selected={selectedDate}
+          onSelect={date => date && setSelectedDate(date)}
+          className="rounded-xl border-0 shadow-lg bg-white dark:bg-gray-900 p-4"
+          modifiers={modifiers}
+          modifiersClassNames={modifiersClassNames}
+        />
+        {/* Appointment details for selected date */}
+        <div className="bg-slate-50 dark:bg-gray-800 rounded-xl p-6 border border-gray-100 dark:border-gray-700">
+          <h3 className="font-semibold text-lg mb-4 flex items-center gap-2 text-gray-800 dark:text-gray-200">
+            <CalendarLarge className="h-5 w-5 text-blue-600" />
+            {selectedDate.toLocaleDateString([], {
+              weekday: "long",
+              month: "long",
+              day: "numeric",
+            })}
+          </h3>
+          {selectedDayAppointments.length === 0 ? (
+            <div className="text-center py-8">
+              <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center">
+                <CalendarLarge className="h-8 w-8 text-gray-400" />
+              </div>
+              <p className="text-gray-500 dark:text-gray-400 font-medium">No appointments scheduled</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Your day is free!</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {selectedDayAppointments.map((a, idx) => (
+                <div key={idx} className="group bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-600 hover:shadow-md transition-all duration-200 hover:border-blue-300 dark:hover:border-blue-500">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <h4 className="font-semibold text-gray-900 dark:text-gray-100">{a.title}</h4>
+                        <Badge className={cn("text-xs px-2 py-1 rounded-full border", getStatusColor(a.status))}>
+                          <div className="flex items-center gap-1">
+                            {getStatusIcon(a.status)}
+                            {a.status}
+                          </div>
+                        </Badge>
                       </div>
-                      <div className="flex-1">
-                        <Label>End Time</Label>
-                        <Input
-                          type="datetime-local"
-                          value={slotForm.endTime}
-                          min={slotForm.startTime || undefined}
-                          onChange={e => setSlotForm(f => ({ ...f, endTime: e.target.value }))}
-                          required
-                        />
+                      {a.description && (
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 leading-relaxed">{a.description}</p>
+                      )}
+                      <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-4 w-4" />
+                          <span>{formatTime(a.startTime)} - {formatTime(a.endTime)}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <User className="h-4 w-4" />
+                          <span>{user?.role === "student" ? a.lecturerName : a.studentName}</span>
+                        </div>
                       </div>
+                      {a.meetingLink && (
+                        <div className="mt-3">
+                          <a 
+                            href={a.meetingLink} 
+                            className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium transition-colors"
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                          >
+                            <Video className="h-4 w-4" />
+                            Join Meeting
+                          </a>
+                        </div>
+                      )}
+                      {a.notes && (
+                        <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800">
+                          <p className="text-sm text-blue-800 dark:text-blue-300">
+                            <span className="font-medium">Notes:</span> {a.notes}
+                          </p>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex justify-end">
-                      <Button type="submit" disabled={slotLoading}>{slotLoading ? "Creating..." : "Create Slot"}</Button>
-                    </div>
-                  </form>
-                </DialogContent>
-              </Dialog>
-            )}
-            {user?.role === "student" && (
-              <Dialog open={isBookingDialogOpen} onOpenChange={setIsBookingDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Book Appointment
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-4xl">
-                  <DialogHeader>
-                    <DialogTitle>Book New Appointment</DialogTitle>
-                    <DialogDescription>Select a lecturer to view their free time slots and book an appointment.</DialogDescription>
-                  </DialogHeader>
-                  <div className="mb-4">
-                    <Label>Lecturer</Label>
-                    <Select value={bookingForm.lecturerId} onValueChange={v => setBookingForm(f => ({ ...f, lecturerId: v }))}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select Lecturer" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {lecturers.map(l => (
-                          <SelectItem key={l._id} value={l._id}>{l.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
                   </div>
-                  {bookingForm.lecturerId && (
-                    <div className="mb-4">
-                      <Label>Available Time Slots</Label>
-                      <ScrollArea className="h-40 border rounded p-2 mt-2">
-                        {availableSlots.filter(slot => slot.lecturerId === bookingForm.lecturerId && new Date(slot.startTime) > new Date()).length === 0 ? (
-                          <div className="text-muted-foreground text-sm">No upcoming slots for this lecturer.</div>
-                        ) : (
-                          availableSlots
-                            .filter(slot => slot.lecturerId === bookingForm.lecturerId && new Date(slot.startTime) > new Date())
-                            .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
-                            .map(slot => (
-                              <div key={slot.id} className="flex items-center justify-between border-b py-2 last:border-b-0">
-                                <div>
-                                  <span className="font-medium">{formatDate(slot.startTime)}</span>
-                                  <span className="ml-2 text-muted-foreground">{formatTime(slot.startTime)} - {formatTime(slot.endTime)}</span>
-                                </div>
-                                <Button size="sm" variant="outline" onClick={() => setBookingForm(f => ({
-                                  ...f,
-                                  startTime: (() => {
-                                    const d = typeof slot.startTime === "string" ? new Date(slot.startTime) : slot.startTime;
-                                    // Format to yyyy-MM-ddTHH:mm in local time
-                                    const pad = (n: number) => n.toString().padStart(2, '0');
-                                    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-                                  })()
-                                }))}>
-                                  Select
-                                </Button>
-                              </div>
-                            ))
-                        )}
-                      </ScrollArea>
-                    </div>
-                  )}
-                  <form onSubmit={handleBookAppointment} className="space-y-4">
-                    <div className="flex gap-4">
-                      <div className="flex-1">
-                        <Label>Start Time</Label>
-                        <Input
-                          type="datetime-local"
-                          value={bookingForm.startTime}
-                          min={(() => {
-                            const d = new Date();
-                            const pad = (n: number) => n.toString().padStart(2, '0');
-                            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-                          })()}
-                          onChange={e => setBookingForm(f => ({ ...f, startTime: e.target.value }))}
-                          required
-                        />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Interface for AppointmentCalendar props
+  interface AppointmentCalendarProps {
+    appointments: Appointment[];
+    selectedDate: Date;
+    setSelectedDate: (date: Date) => void;
+  }
+
+  return (
+    <main className="min-h-screen ">
+      <div className="container mx-auto px-4 py-8 max-w-7xl">
+        <div className="space-y-8">
+          {/* Enhanced Header Section */}
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+            <div className="space-y-2">
+              <h1 className="text-4xl font-bold">
+                Appointments
+              </h1>
+              <p className="text-lg text-gray-600 dark:text-gray-300 font-medium">
+                {user?.role === "student" ? "Schedule meetings with your lecturers" : "Manage your teaching schedule"}
+              </p>
+              <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                <Users className="h-4 w-4" />
+                <span>{appointments.length} {appointments.length === 1 ? 'appointment' : 'appointments'} total</span>
+              </div>
+            </div>
+            
+            <div className="flex gap-3">
+              {user?.role === "lecturer" && (
+                <Dialog open={isCreateSlotDialogOpen} onOpenChange={setIsCreateSlotDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" className="bg-white dark:bg-gray-800 border-2 border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-200 shadow-md hover:shadow-lg">
+                      <Plus className="mr-2 h-4 w-4" />
+                      Create Time Slot
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                      <DialogTitle className="text-xl font-semibold">Create New Time Slot</DialogTitle>
+                      <DialogDescription className="text-gray-600 dark:text-gray-400">
+                        Add a new available time slot for students to book appointments.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleCreateSlot} className="space-y-6">
+                      <div className="grid grid-cols-1 gap-4">
+                        <div>
+                          <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Start Time</Label>
+                          <Input
+                            type="datetime-local"
+                            value={slotForm.startTime}
+                            min={(() => {
+                              const d = new Date();
+                              const pad = (n: number) => n.toString().padStart(2, '0');
+                              return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                            })()}
+                            onChange={e => setSlotForm(f => ({ ...f, startTime: e.target.value }))}
+                            className="mt-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">End Time</Label>
+                          <Input
+                            type="datetime-local"
+                            value={slotForm.endTime}
+                            min={slotForm.startTime || undefined}
+                            onChange={e => setSlotForm(f => ({ ...f, endTime: e.target.value }))}
+                            className="mt-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            required
+                          />
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <Label>Duration</Label>
-                        <Select
-                          value={String(bookingForm.duration)}
-                          onValueChange={v => setBookingForm(f => ({ ...f, duration: Number(v) }))}
-                          required
+                      <div className="flex justify-end gap-3">
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          onClick={() => setIsCreateSlotDialogOpen(false)}
+                          className="px-6"
                         >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select duration" />
+                          Cancel
+                        </Button>
+                        <Button 
+                          type="submit" 
+                          disabled={slotLoading}
+                          className="px-6 bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
+                        >
+                          {slotLoading ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Creating...
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="mr-2 h-4 w-4" />
+                              Create Slot
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              )}
+              
+              {user?.role === "student" && (
+                <Dialog open={isBookingDialogOpen} onOpenChange={setIsBookingDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-105">
+                      <Plus className="mr-2 h-4 w-4" />
+                      Book Appointment
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle className="text-xl font-semibold">Book New Appointment</DialogTitle>
+                      <DialogDescription className="text-gray-600 dark:text-gray-400">
+                        Select a lecturer to view their free time slots and book an appointment.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-6">
+                      <div>
+                        <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Lecturer</Label>
+                        <Select value={bookingForm.lecturerId} onValueChange={v => setBookingForm(f => ({ ...f, lecturerId: v }))}>
+                          <SelectTrigger className="mt-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <SelectValue placeholder="Select Lecturer" />
                           </SelectTrigger>
                           <SelectContent>
-                            {[...Array(8)].map((_, i) => {
-                              const min = (i + 1) * 15;
-                              return (
-                                <SelectItem key={min} value={String(min)}>{min} minutes</SelectItem>
-                              );
-                            })}
+                            {lecturers.map(l => (
+                              <SelectItem key={l._id} value={l._id}>{l.name}</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
-                    </div>
-                    <div>
-                      <Label>Title</Label>
-                      <Input value={bookingForm.title} onChange={e => setBookingForm(f => ({ ...f, title: e.target.value }))} required />
-                    </div>
-                    <div>
-                      <Label>Description</Label>
-                      <Textarea value={bookingForm.description} onChange={e => setBookingForm(f => ({ ...f, description: e.target.value }))} />
-                    </div>
-                    <div className="flex justify-end">
-                      <Button type="submit" disabled={bookingLoading}>{bookingLoading ? "Booking..." : "Book Appointment"}</Button>
-                    </div>
-                  </form>
-                </DialogContent>
-              </Dialog>
-            )}
-          </div>
-        </div>
-
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Unified Calendar for both students and lecturers */}
-          <Card className="mb-6 lg:col-span-1">
-            <CardHeader>
-              <CardTitle className="text-lg">Appointment Calendar</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <AppointmentCalendar appointments={appointments} selectedDate={selectedDate} setSelectedDate={setSelectedDate} />
-              {/* Available Slots for lecturers, now below the calendar */}
-              {user?.role === "lecturer" && (
-                <div className="mt-6">
-                  <h3 className="font-semibold mb-4">Available Slots</h3>
-                  <ScrollArea className="h-48">
-                    <div className="space-y-2">
-                      {loading ? (
-                        [...Array(3)].map((_, i) => (
-                          <div key={i} className="p-3 border rounded-lg bg-gray-100 dark:bg-gray-800 animate-pulse h-16" />
-                        ))
-                      ) : availableSlots
-                        .filter((slot) => {
-                          const slotDate = typeof slot.startTime === "string" ? new Date(slot.startTime) : slot.startTime;
-                          return slotDate.toDateString() === selectedDate.toDateString() && slot.lecturerId === String(user._id);
-                        })
-                        .map((slot) => {
-                          // Use slot._id if present, else fallback to slot.id
-                          const slotKey = (slot as any)._id || slot.id;
-                          return (
-                            <div key={slotKey} className="p-3 border rounded-lg bg-green-50 dark:bg-green-900/10 flex items-center justify-between">
-                              <div>
-                                <p className="font-medium">{slot.lecturerName}</p>
-                                <p className="text-sm text-muted-foreground">
-                                  {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
-                                </p>
+                      
+                      {bookingForm.lecturerId && (
+                        <div>
+                          <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Available Time Slots</Label>
+                          <div className="mt-2 max-h-40 overflow-y-auto bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600">
+                            {availableSlots.filter(slot => slot.lecturerId === bookingForm.lecturerId && new Date(slot.startTime) > new Date()).length === 0 ? (
+                              <div className="p-6 text-center">
+                                <Clock className="h-12 w-12 mx-auto text-gray-400 mb-3" />
+                                <p className="text-gray-500 dark:text-gray-400 font-medium">No upcoming slots available</p>
+                                <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">This lecturer hasn't created any time slots yet.</p>
                               </div>
-                              <Button size="icon" variant="ghost" className="ml-2" onClick={() => { setSlotToDelete(String(slotKey)); }} disabled={slotDeleteLoading === slotKey}>
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
+                            ) : (
+                              <div className="p-2">
+                                {availableSlots
+                                  .filter(slot => slot.lecturerId === bookingForm.lecturerId && new Date(slot.startTime) > new Date())
+                                  .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+                                  .map(slot => (
+                                    <div key={slot.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-white dark:hover:bg-gray-700 transition-colors border-b border-gray-200 dark:border-gray-600 last:border-b-0">
+                                      <div>
+                                        <p className="font-medium text-gray-900 dark:text-gray-100">{formatDate(slot.startTime)}</p>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400">{formatTime(slot.startTime)} - {formatTime(slot.endTime)}</p>
+                                      </div>
+                                      <Button 
+                                        size="sm" 
+                                        variant="outline" 
+                                        onClick={() => setBookingForm(f => ({
+                                          ...f,
+                                          startTime: (() => {
+                                            const d = typeof slot.startTime === "string" ? new Date(slot.startTime) : slot.startTime;
+                                            const pad = (n: number) => n.toString().padStart(2, '0');
+                                            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                                          })()
+                                        }))}
+                                        className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-300 dark:hover:bg-blue-900/30"
+                                      >
+                                        Select
+                                      </Button>
+                                    </div>
+                                  ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      <form onSubmit={handleBookAppointment} className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Start Time</Label>
+                            <Input
+                              type="datetime-local"
+                              value={bookingForm.startTime}
+                              min={(() => {
+                                const d = new Date();
+                                const pad = (n: number) => n.toString().padStart(2, '0');
+                                return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                              })()}
+                              onChange={e => setBookingForm(f => ({ ...f, startTime: e.target.value }))}
+                              className="mt-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Duration</Label>
+                            <Select
+                              value={String(bookingForm.duration)}
+                              onValueChange={v => setBookingForm(f => ({ ...f, duration: Number(v) }))}
+                            >
+                              <SelectTrigger className="mt-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <SelectValue placeholder="Select duration" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {[...Array(8)].map((_, i) => {
+                                  const min = (i + 1) * 15;
+                                  return (
+                                    <SelectItem key={min} value={String(min)}>{min} minutes</SelectItem>
+                                  );
+                                })}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div>
+                          <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Title</Label>
+                          <Input 
+                            value={bookingForm.title} 
+                            onChange={e => setBookingForm(f => ({ ...f, title: e.target.value }))} 
+                            className="mt-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="e.g., Project Discussion, Question Session"
+                            required 
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Description</Label>
+                          <Textarea 
+                            value={bookingForm.description} 
+                            onChange={e => setBookingForm(f => ({ ...f, description: e.target.value }))} 
+                            className="mt-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-h-[100px] resize-none"
+                            placeholder="Please provide details about what you'd like to discuss..."
+                          />
+                        </div>
+                        <div className="flex justify-end gap-3">
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            onClick={() => setIsBookingDialogOpen(false)}
+                            className="px-6"
+                          >
+                            Cancel
+                          </Button>
+                          <Button 
+                            type="submit" 
+                            disabled={bookingLoading}
+                            className="px-6 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
+                          >
+                            {bookingLoading ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Booking...
+                              </>
+                            ) : (
+                              "Book Appointment"
+                            )}
+                          </Button>
+                        </div>
+                      </form>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              )}
+            </div>
+          </div>
+
+          {/* Enhanced Main Content Grid */}
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
+            {/* Calendar Section */}
+            <div className="xl:col-span-4">
+              <Card className="border-0 shadow-xl bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-xl font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-200">
+                    <CalendarIcon className="h-5 w-5 text-blue-600" />
+                    Calendar
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <AppointmentCalendar appointments={appointments} selectedDate={selectedDate} setSelectedDate={setSelectedDate} />
+                  
+                  {/* Available Slots for lecturers */}
+                  {user?.role === "lecturer" && (
+                    <div className="mt-8 space-y-4">
+                      <h3 className="font-semibold text-lg flex items-center gap-2 text-gray-800 dark:text-gray-200">
+                        <Clock className="h-5 w-5 text-green-600" />
+                        Available Slots
+                      </h3>
+                      <div className="max-h-64 overflow-y-auto">
+                        <div className="space-y-3">
+                          {loading ? (
+                            [...Array(3)].map((_, i) => (
+                              <div key={i} className="p-4 bg-gray-100 dark:bg-gray-800 animate-pulse rounded-lg h-20" />
+                            ))
+                          ) : availableSlots
+                            .filter((slot) => {
+                              const slotDate = typeof slot.startTime === "string" ? new Date(slot.startTime) : slot.startTime;
+                              return slotDate.toDateString() === selectedDate.toDateString() && slot.lecturerId === String(user._id);
+                            })
+                            .map((slot) => {
+                              const slotKey = (slot as any)._id || slot.id;
+                              return (
+                                <div key={slotKey} className="group p-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 hover:shadow-md transition-all duration-200">
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <p className="font-medium text-green-800 dark:text-green-300">{slot.lecturerName}</p>
+                                      <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
+                                        <Clock className="h-3 w-3" />
+                                        {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
+                                      </p>
+                                    </div>
+                                    <Button 
+                                      size="icon" 
+                                      variant="ghost" 
+                                      className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-100 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400" 
+                                      onClick={() => { setSlotToDelete(String(slotKey)); }} 
+                                      disabled={slotDeleteLoading === slotKey}
+                                    >
+                                      {slotDeleteLoading === slotKey ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                      ) : (
+                                        <Trash2 className="w-4 h-4" />
+                                      )}
+                                    </Button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          
+                          {!loading && availableSlots.filter((slot) => {
+                            const slotDate = typeof slot.startTime === "string" ? new Date(slot.startTime) : slot.startTime;
+                            return slotDate.toDateString() === selectedDate.toDateString() && slot.lecturerId === String(user._id);
+                          }).length === 0 && (
+                            <div className="text-center py-6">
+                              <Clock className="h-12 w-12 mx-auto text-gray-400 mb-3" />
+                              <p className="text-gray-500 dark:text-gray-400 font-medium">No slots for this day</p>
+                              <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Create a new time slot to get started.</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Appointments List */}
+            <div className="xl:col-span-8">
+              <Card className="border-0 shadow-xl bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-xl font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-200">
+                    <User className="h-5 w-5 text-indigo-600" />
+                    Your Appointments
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="max-h-[700px] overflow-y-auto">
+                    {loading ? (
+                      <div className="space-y-4">
+                        {[...Array(3)].map((_, i) => (
+                          <div key={i} className="p-6 border border-gray-200 dark:border-gray-700 rounded-xl">
+                            <div className="space-y-4">
+                              <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-3/4"></div>
+                              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-1/2"></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : appointments.length === 0 ? (
+                      <div className="text-center py-16">
+                        <div className="w-24 h-24 mx-auto mb-6 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center">
+                          <CalendarIcon className="h-12 w-12 text-blue-500" />
+                        </div>
+                        <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">No appointments yet</h3>
+                        <p className="text-gray-500 dark:text-gray-400 mb-6 max-w-md mx-auto">
+                          {user?.role === "student" 
+                            ? "Ready to schedule your first appointment? Click the button above to get started." 
+                            : "No student appointments scheduled yet. Create some time slots to allow bookings."
+                          }
+                        </p>
+                        {user?.role === "student" && (
+                          <Button 
+                            onClick={() => setIsBookingDialogOpen(true)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
+                          >
+                            <Plus className="mr-2 h-4 w-4" />
+                            Book Your First Appointment
+                          </Button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {appointments.map((appointment) => {
+                          const isStudent = user?.role === "student";
+                          const now = new Date();
+                          const endTime = new Date(appointment.endTime);
+                          let status = appointment.status;
+                          if (status !== "completed" && endTime < now) {
+                            status = "completed";
+                          }
+                          const isUpcoming = new Date(appointment.startTime) > now;
+                          const canCancel = isStudent && isUpcoming && status === "pending";
+                          const canDelete = ["cancelled", "rejected", "completed"].includes(status);
+                          const canReschedule = user?.role === "lecturer" && status === "accepted";
+                          const canStudentRespondReschedule = user?.role === "student" && status === "rescheduled";
+                          
+                          let appointmentId: string = "";
+                          if (appointment._id) {
+                            const _id: any = appointment._id;
+                            if (typeof _id === "object" && _id !== null && "$oid" in _id) {
+                              appointmentId = _id.$oid;
+                            } else {
+                              appointmentId = String(_id);
+                            }
+                          } else if ((appointment as any).id) {
+                            appointmentId = String((appointment as any).id);
+                          }
+                          
+                          const handleStudentRescheduleResponse = async (appointmentId: string, action: 'accept' | 'reject') => {
+                            try {
+                              const res = await fetch('/api/appointments', {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ appointmentId, action }),
+                              });
+                              const data = await res.json();
+                              if (res.ok) {
+                                toast({ title: `Appointment ${action === 'accept' ? 'Accepted' : 'Rejected'}` });
+                                fetchAppointments();
+                              } else {
+                                toast({ title: 'Error', description: data.message || 'Failed to update appointment', variant: 'destructive' });
+                              }
+                            } catch (err) {
+                              toast({ title: 'Error', description: 'Failed to update appointment', variant: 'destructive' });
+                            }
+                          };
+                          
+                          return (
+                            <div key={appointmentId} className="group relative p-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:shadow-lg transition-all duration-300 hover:border-blue-300 dark:hover:border-blue-600">
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1 space-y-4">
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{appointment.title}</h3>
+                                      <Badge className={cn("text-xs px-3 py-1 rounded-full border shadow-sm", getStatusColor(status))}>
+                                        <div className="flex items-center gap-1.5">
+                                          {getStatusIcon(status)}
+                                          <span className="font-medium capitalize">{status}</span>
+                                        </div>
+                                      </Badge>
+                                    </div>
+                                    {canDelete && (
+                                      <Button 
+                                        size="icon" 
+                                        variant="ghost" 
+                                        className="opacity-0 group-hover:opacity-100 transition-all hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 rounded-full" 
+                                        onClick={() => { setAppointmentToDelete(appointmentId); setDeleteAppointmentDialogOpen(true); }} 
+                                        title="Delete appointment"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                  
+                                  {appointment.description && (
+                                    <p className="text-gray-600 dark:text-gray-400 leading-relaxed bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg border border-gray-100 dark:border-gray-700">
+                                      {appointment.description}
+                                    </p>
+                                  )}
+                                  
+                                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                                    <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                                      <div className="p-2 bg-blue-100 dark:bg-blue-800/50 rounded-full">
+                                        <User className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                      </div>
+                                      <div>
+                                        <p className="text-xs text-blue-600 dark:text-blue-400 font-medium uppercase tracking-wide">
+                                          {isStudent ? "Lecturer" : "Student"}
+                                        </p>
+                                        <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                                          {isStudent ? appointment.lecturerName : appointment.studentName}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                                      <div className="p-2 bg-green-100 dark:bg-green-800/50 rounded-full">
+                                        <CalendarIcon className="h-4 w-4 text-green-600 dark:text-green-400" />
+                                      </div>
+                                      <div>
+                                        <p className="text-xs text-green-600 dark:text-green-400 font-medium uppercase tracking-wide">Date</p>
+                                        <p className="text-sm font-medium text-green-800 dark:text-green-200">
+                                          {new Date(appointment.startTime).toLocaleDateString([], { 
+                                            month: 'short', 
+                                            day: 'numeric',
+                                            year: 'numeric'
+                                          })}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="flex items-center gap-3 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                                      <div className="p-2 bg-purple-100 dark:bg-purple-800/50 rounded-full">
+                                        <Clock className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                                      </div>
+                                      <div>
+                                        <p className="text-xs text-purple-600 dark:text-purple-400 font-medium uppercase tracking-wide">Time</p>
+                                        <p className="text-sm font-medium text-purple-800 dark:text-purple-200">
+                                          {formatTime(appointment.startTime)} - {formatTime(appointment.endTime)}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  
+                                  {(appointment.location || appointment.meetingLink) && (
+                                    <div className="flex flex-wrap gap-4">
+                                      {appointment.location && (
+                                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 rounded-lg">
+                                          <MapPin className="h-4 w-4 text-gray-500" />
+                                          <span>{appointment.location}</span>
+                                        </div>
+                                      )}
+                                      {appointment.meetingLink && (
+                                        <a 
+                                          href={appointment.meetingLink} 
+                                          className="inline-flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 bg-blue-50 dark:bg-blue-900/20 px-3 py-2 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                                          target="_blank" 
+                                          rel="noopener noreferrer"
+                                        >
+                                          <Video className="h-4 w-4" />
+                                          Join Meeting
+                                        </a>
+                                      )}
+                                    </div>
+                                  )}
+                                  
+                                  {appointment.notes && (
+                                    <div className="p-4 bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 rounded-lg border border-indigo-100 dark:border-indigo-800">
+                                      <p className="text-sm font-medium text-indigo-800 dark:text-indigo-300 mb-1">Notes:</p>
+                                      <p className="text-sm text-indigo-700 dark:text-indigo-200 leading-relaxed">{appointment.notes}</p>
+                                    </div>
+                                  )}
+                                  
+                                  {/* Action Buttons */}
+                                  <div className="flex flex-wrap gap-3 pt-2">
+                                    {/* Lecturer: Accept/Reject for pending appointments */}
+                                    {user?.role === "lecturer" && appointment.status === "pending" && (
+                                      <>
+                                        <Button 
+                                          size="sm" 
+                                          onClick={() => handleAppointmentAction(appointment._id as string, "accept")}
+                                          className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-sm hover:shadow-md transition-all duration-200"
+                                        >
+                                          <CheckCircle className="mr-2 h-4 w-4" />
+                                          Accept
+                                        </Button>
+                                        <Button 
+                                          size="sm" 
+                                          variant="outline" 
+                                          onClick={() => handleAppointmentAction(appointment._id as string, "reject")}
+                                          className="border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20"
+                                        >
+                                          <XCircle className="mr-2 h-4 w-4" />
+                                          Reject
+                                        </Button>
+                                      </>
+                                    )}
+                                    
+                                    {/* Lecturer: Reschedule for accepted appointments */}
+                                    {canReschedule && (
+                                      <Button 
+                                        size="sm" 
+                                        variant="outline" 
+                                        onClick={() => {
+                                          setAppointmentToReschedule(appointmentId);
+                                          setRescheduleDialogOpen(true);
+                                          setRescheduleTime({startTime: '', duration: 30});
+                                        }}
+                                        className="border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-300 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-900/20"
+                                      >
+                                        <Clock className="mr-2 h-4 w-4" />
+                                        Reschedule
+                                      </Button>
+                                    )}
+                                    
+                                    {/* Student: Accept/Reject for rescheduled appointments */}
+                                    {canStudentRespondReschedule && (
+                                      <>
+                                        <Button 
+                                          size="sm" 
+                                          onClick={() => handleStudentRescheduleResponse(appointment._id as string, 'accept')}
+                                          className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-sm hover:shadow-md transition-all duration-200"
+                                        >
+                                          <CheckCircle className="mr-2 h-4 w-4" />
+                                          Accept Reschedule
+                                        </Button>
+                                        <Button 
+                                          size="sm" 
+                                          variant="outline" 
+                                          onClick={() => handleStudentRescheduleResponse(appointment._id as string, 'reject')}
+                                          className="border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20"
+                                        >
+                                          <XCircle className="mr-2 h-4 w-4" />
+                                          Reject Reschedule
+                                        </Button>
+                                      </>
+                                    )}
+                                    
+                                    {/* Student: Cancel button for upcoming appointments */}
+                                    {canCancel && (
+                                      <Button 
+                                        size="sm" 
+                                        variant="outline" 
+                                        onClick={() => { setAppointmentToCancel(appointment._id as string); setCancelDialogOpen(true); }}
+                                        className="border-orange-200 text-orange-700 hover:bg-orange-50 hover:border-orange-300 dark:border-orange-700 dark:text-orange-400 dark:hover:bg-orange-900/20"
+                                      >
+                                        <XCircle className="mr-2 h-4 w-4" />
+                                        Cancel Appointment
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
                             </div>
                           );
                         })}
-                    </div>
-                  </ScrollArea>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Appointments List */}
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle>Your Appointments</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[600px]">
-                {loading ? (
-                  <div className="space-y-4">
-                    {[...Array(3)].map((_, i) => (
-                      <div key={i} className="p-4 border rounded-lg">
-                        <div className="space-y-3">
-                          <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
-                          <div className="h-3 bg-gray-200 rounded animate-pulse w-3/4"></div>
-                          <div className="h-3 bg-gray-200 rounded animate-pulse w-1/2"></div>
-                        </div>
                       </div>
-                    ))}
+                    )}
                   </div>
-                ) : appointments.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No appointments found
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {appointments.map((appointment) => {
-                      const isStudent = user?.role === "student";
-                      const now = new Date();
-                      const endTime = new Date(appointment.endTime);
-                      // If appointment is not completed and endTime is in the past, mark as completed (frontend only)
-                      let status = appointment.status;
-                      if (status !== "completed" && endTime < now) {
-                        status = "completed";
-                      }
-                      const isUpcoming = new Date(appointment.startTime) > now;
-                      const canCancel = isStudent && isUpcoming && status === "pending";
-                      const canDelete = ["cancelled", "rejected", "completed"].includes(status);
-                      const canReschedule = user?.role === "lecturer" && status === "accepted";
-                      const canStudentRespondReschedule = user?.role === "student" && status === "rescheduled";
-                      // Use _id if present, else fallback to id, and always extract string if $oid
-                      let appointmentId: string = "";
-                      if (appointment._id) {
-                        const _id: any = appointment._id;
-                        if (typeof _id === "object" && _id !== null && "$oid" in _id) {
-                          appointmentId = _id.$oid;
-                        } else {
-                          appointmentId = String(_id);
-                        }
-                      } else if ((appointment as any).id) {
-                        appointmentId = String((appointment as any).id);
-                      }
-                      // Handler for student accept/reject reschedule
-                      const handleStudentRescheduleResponse = async (appointmentId: string, action: 'accept' | 'reject') => {
-                        try {
-                          const res = await fetch('/api/appointments', {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ appointmentId, action }),
-                          });
-                          const data = await res.json();
-                          if (res.ok) {
-                            toast({ title: `Appointment ${action === 'accept' ? 'Accepted' : 'Rejected'}` });
-                            fetchAppointments();
-                          } else {
-                            toast({ title: 'Error', description: data.message || 'Failed to update appointment', variant: 'destructive' });
-                          }
-                        } catch (err) {
-                          toast({ title: 'Error', description: 'Failed to update appointment', variant: 'destructive' });
-                        }
-                      };
-                      return (
-                        <div key={appointmentId} className="p-4 border rounded-lg">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
-                                <h3 className="font-semibold">{appointment.title}</h3>
-                                <Badge className={getStatusColor(status)}>
-                                  {status}
-                                </Badge>
-                              </div>
-                              {appointment.description && (
-                                <p className="text-sm text-muted-foreground mb-3">{appointment.description}</p>
-                              )}
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                                <div className="flex items-center gap-2">
-                                  <User className="h-4 w-4 text-muted-foreground" />
-                                  <span>{isStudent ? appointment.lecturerName : appointment.studentName}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                                  <span>{formatDate(appointment.startTime)}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Clock className="h-4 w-4 text-muted-foreground" />
-                                  <span>
-                                    {formatTime(appointment.startTime)} - {formatTime(appointment.endTime)}
-                                  </span>
-                                </div>
-                                {appointment.location && (
-                                  <div className="flex items-center gap-2">
-                                    <MapPin className="h-4 w-4 text-muted-foreground" />
-                                    <span>{appointment.location}</span>
-                                  </div>
-                                )}
-                                {appointment.meetingLink && (
-                                  <div className="flex items-center gap-2">
-                                    <Video className="h-4 w-4 text-muted-foreground" />
-                                    <a href={appointment.meetingLink} className="text-blue-600 hover:underline">
-                                      Join Meeting
-                                    </a>
-                                  </div>
-                                )}
-                              </div>
-                              {appointment.notes && (
-                                <div className="mt-3 p-2 bg-muted rounded text-sm">
-                                  <p className="font-medium">Notes:</p>
-                                  <p>{appointment.notes}</p>
-                                </div>
-                              )}
-                              {/* Lecturer: Accept/Reject for pending appointments */}
-                              {user?.role === "lecturer" && appointment.status === "pending" && (
-                                <div className="mt-3 flex gap-2">
-                                  <Button size="sm" variant="default" onClick={() => handleAppointmentAction(appointment._id as string, "accept")}>Accept</Button>
-                                  <Button size="sm" variant="destructive" onClick={() => handleAppointmentAction(appointment._id as string, "reject")}>Reject</Button>
-                                </div>
-                              )}
-                              {/* Lecturer: Reschedule for accepted appointments */}
-                              {canReschedule && (
-                                <div className="mt-3 flex gap-2">
-                                <Button size="sm" variant="outline" onClick={() => {
-                                    setAppointmentToReschedule(appointmentId);
-                                    setRescheduleDialogOpen(true);
-                                    setRescheduleTime({startTime: '', duration: 30});
-                                  }}>Reschedule</Button>
-                                </div>
-                              )}
-                              {/* Student: Accept/Reject for rescheduled appointments */}
-                              {canStudentRespondReschedule && (
-                                <div className="mt-3 flex gap-2">
-                                  <Button size="sm" variant="default" onClick={() => handleStudentRescheduleResponse(appointment._id as string, 'accept')}>Accept</Button>
-                                  <Button size="sm" variant="destructive" onClick={() => handleStudentRescheduleResponse(appointment._id as string, 'reject')}>Reject</Button>
-                                </div>
-                              )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </div>
+        
+        {/* All Dialogs */}
+        
         {/* Reschedule dialog for lecturers */}
         <Dialog open={rescheduleDialogOpen} onOpenChange={(open) => {
           setRescheduleDialogOpen(open);
@@ -880,138 +1226,274 @@ interface AppointmentCalendarProps {
             setRescheduleTime({startTime: '', duration: 30});
           }
         }}>
-          <DialogContent>
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Reschedule Appointment</DialogTitle>
-              <DialogDescription>Select a new start time and duration for this appointment.</DialogDescription>
-            </DialogHeader>
-            <div className="mb-4">
-              <Label>Start Time</Label>
-              <Input type="datetime-local" value={rescheduleTime.startTime} min={(() => {
-                const d = new Date();
-                const pad = (n: number) => n.toString().padStart(2, '0');
-                return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-              })()} onChange={e => setRescheduleTime(t => ({ ...t, startTime: e.target.value }))} required />
-            </div>
-            <div className="mb-4">
-              <Label>Duration</Label>
-              <Select value={String(rescheduleTime.duration)} onValueChange={v => setRescheduleTime(t => ({ ...t, duration: Number(v) }))} required>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select duration" />
-                </SelectTrigger>
-                <SelectContent>
-                  {[...Array(8)].map((_, i) => {
-                    const min = (i + 1) * 15;
-                    return (
-                      <SelectItem key={min} value={String(min)}>{min} minutes</SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex justify-end gap-2 mt-4">
-              <Button variant="outline" onClick={() => setRescheduleDialogOpen(false)} disabled={rescheduleLoading}>Cancel</Button>
-              <Button variant="default" onClick={handleRescheduleAppointment} disabled={rescheduleLoading || !rescheduleTime.startTime || !rescheduleTime.duration}>
-                {rescheduleLoading ? <Loader2 className="animate-spin w-4 h-4" /> : "Reschedule"}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-                              {/* Student: Cancel button for upcoming appointments */}
-                              {canCancel && (
-                                <div className="mt-3 flex gap-2">
-                                  <Button size="sm" variant="destructive" onClick={() => { setAppointmentToCancel(appointment._id as string); setCancelDialogOpen(true); }}>
-                                    Cancel Appointment
-                                  </Button>
-                                </div>
-                              )}
-                            </div>
-                            {/* Delete button for cancelled appointments (right side) */}
-                            {canDelete && (
-                              <div className="flex items-center ml-2">
-                                <Button size="icon" variant="ghost" onClick={() => { setAppointmentToDelete(appointmentId); setDeleteAppointmentDialogOpen(true); }} title="Delete appointment">
-                                  <Trash2 className="w-4 h-4 text-red-500" />
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-        {/* Delete cancelled appointment dialog */}
-        <Dialog open={deleteAppointmentDialogOpen} onOpenChange={setDeleteAppointmentDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Delete Cancelled Appointment?</DialogTitle>
-              <DialogDescription>Are you sure you want to permanently delete this cancelled appointment? This action cannot be undone.</DialogDescription>
-            </DialogHeader>
-            <div className="flex justify-end gap-2 mt-4">
-              <Button variant="outline" onClick={() => setDeleteAppointmentDialogOpen(false)} disabled={deleteAppointmentLoading}>Cancel</Button>
-              <Button variant="destructive" onClick={() => appointmentToDelete && handleDeleteAppointment(appointmentToDelete)} disabled={deleteAppointmentLoading}>
-                {deleteAppointmentLoading ? <Loader2 className="animate-spin w-4 h-4" /> : "Delete"}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-                  </div>
-                )}
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </div>
-        {/* Booking confirmation dialog for students */}
-        <Dialog open={confirmBookingDialogOpen} onOpenChange={setConfirmBookingDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Confirm Booking</DialogTitle>
-              <DialogDescription>
-                Are you sure you want to book this appointment? Please confirm your details before proceeding.
+              <DialogTitle className="text-xl font-semibold">Reschedule Appointment</DialogTitle>
+              <DialogDescription className="text-gray-600 dark:text-gray-400">
+                Select a new start time and duration for this appointment.
               </DialogDescription>
             </DialogHeader>
-            <div className="mb-4">
-              <div><b>Lecturer:</b> {pendingBookingForm?.lecturerId ? lecturers.find(l => l._id === pendingBookingForm.lecturerId)?.name : ""}</div>
-              <div><b>Title:</b> {pendingBookingForm?.title}</div>
-              <div><b>Date:</b> {pendingBookingForm?.startTime ? formatDate(pendingBookingForm.startTime) : ""}</div>
-              <div><b>Time:</b> {pendingBookingForm?.startTime ? formatTime(pendingBookingForm.startTime) : ""}</div>
-              <div><b>Duration:</b> {pendingBookingForm?.duration} minutes</div>
-              {pendingBookingForm?.description && <div><b>Description:</b> {pendingBookingForm.description}</div>}
+            <div className="space-y-6">
+              <div>
+                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Start Time</Label>
+                <Input 
+                  type="datetime-local" 
+                  value={rescheduleTime.startTime} 
+                  min={(() => {
+                    const d = new Date();
+                    const pad = (n: number) => n.toString().padStart(2, '0');
+                    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                  })()} 
+                  onChange={e => setRescheduleTime(t => ({ ...t, startTime: e.target.value }))} 
+                  className="mt-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required 
+                />
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Duration</Label>
+                <Select value={String(rescheduleTime.duration)} onValueChange={v => setRescheduleTime(t => ({ ...t, duration: Number(v) }))}>
+                  <SelectTrigger className="mt-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    <SelectValue placeholder="Select duration" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[...Array(8)].map((_, i) => {
+                      const min = (i + 1) * 15;
+                      return (
+                        <SelectItem key={min} value={String(min)}>{min} minutes</SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="flex justify-end gap-2 mt-4">
-              <Button variant="outline" onClick={() => { setConfirmBookingDialogOpen(false); setPendingBookingForm(null); }} disabled={bookingLoading}>Cancel</Button>
-              <Button variant="default" onClick={confirmBookAppointment} disabled={bookingLoading}>
-                {bookingLoading ? <Loader2 className="animate-spin w-4 h-4" /> : "Confirm Booking"}
+            <div className="flex justify-end gap-3 mt-6">
+              <Button 
+                variant="outline" 
+                onClick={() => setRescheduleDialogOpen(false)} 
+                disabled={rescheduleLoading}
+                className="px-6"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleRescheduleAppointment} 
+                disabled={rescheduleLoading || !rescheduleTime.startTime || !rescheduleTime.duration}
+                className="px-6 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
+              >
+                {rescheduleLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Rescheduling...
+                  </>
+                ) : (
+                  <>
+                    <Clock className="mr-2 h-4 w-4" />
+                    Reschedule
+                  </>
+                )}
               </Button>
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Booking confirmation dialog for students */}
+        <Dialog open={confirmBookingDialogOpen} onOpenChange={setConfirmBookingDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-semibold">Confirm Booking</DialogTitle>
+              <DialogDescription className="text-gray-600 dark:text-gray-400">
+                Please review your appointment details before confirming.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-1 gap-4">
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="font-medium text-blue-800 dark:text-blue-300">Lecturer:</span>
+                      <span className="text-blue-700 dark:text-blue-200">
+                        {pendingBookingForm?.lecturerId ? lecturers.find(l => l._id === pendingBookingForm.lecturerId)?.name : ""}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium text-blue-800 dark:text-blue-300">Title:</span>
+                      <span className="text-blue-700 dark:text-blue-200">{pendingBookingForm?.title}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium text-blue-800 dark:text-blue-300">Date:</span>
+                      <span className="text-blue-700 dark:text-blue-200">
+                        {pendingBookingForm?.startTime ? new Date(pendingBookingForm.startTime).toLocaleDateString([], {
+                          weekday: 'long',
+                          month: 'long',
+                          day: 'numeric',
+                          year: 'numeric'
+                        }) : ""}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium text-blue-800 dark:text-blue-300">Time:</span>
+                      <span className="text-blue-700 dark:text-blue-200">
+                        {pendingBookingForm?.startTime ? formatTime(pendingBookingForm.startTime) : ""}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium text-blue-800 dark:text-blue-300">Duration:</span>
+                      <span className="text-blue-700 dark:text-blue-200">{pendingBookingForm?.duration} minutes</span>
+                    </div>
+                  </div>
+                </div>
+                {pendingBookingForm?.description && (
+                  <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                    <p className="font-medium text-gray-800 dark:text-gray-300 mb-2">Description:</p>
+                    <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed">{pendingBookingForm.description}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button 
+                variant="outline" 
+                onClick={() => { setConfirmBookingDialogOpen(false); setPendingBookingForm(null); }} 
+                disabled={bookingLoading}
+                className="px-6"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={confirmBookAppointment} 
+                disabled={bookingLoading}
+                className="px-6 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
+              >
+                {bookingLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Confirming...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                    Confirm Booking
+                  </>
+                )}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {/* Student appointment cancellation dialog */}
         <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
-          <DialogContent>
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Cancel Appointment?</DialogTitle>
-              <DialogDescription>Are you sure you want to cancel this appointment? This action cannot be undone.</DialogDescription>
+              <DialogTitle className="text-xl font-semibold">Cancel Appointment?</DialogTitle>
+              <DialogDescription className="text-gray-600 dark:text-gray-400">
+                Are you sure you want to cancel this appointment? This action cannot be undone.
+              </DialogDescription>
             </DialogHeader>
-            <div className="flex justify-end gap-2 mt-4">
-              <Button variant="outline" onClick={() => setCancelDialogOpen(false)}>No, keep it</Button>
-              <Button variant="destructive" onClick={() => appointmentToCancel && handleCancelAppointment(appointmentToCancel)} disabled={cancelLoading}>
-                {cancelLoading ? <Loader2 className="animate-spin w-4 h-4" /> : "Yes, cancel"}
+            <div className="flex justify-end gap-3 mt-6">
+              <Button 
+                variant="outline" 
+                onClick={() => setCancelDialogOpen(false)}
+                className="px-6"
+              >
+                Keep Appointment
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={() => appointmentToCancel && handleCancelAppointment(appointmentToCancel)} 
+                disabled={cancelLoading}
+                className="px-6 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 shadow-md hover:shadow-lg transition-all duration-200"
+              >
+                {cancelLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Cancelling...
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="mr-2 h-4 w-4" />
+                    Yes, Cancel
+                  </>
+                )}
               </Button>
             </div>
           </DialogContent>
         </Dialog>
-        {/* Delete confirmation dialog rendered at the top level */}
+
+        {/* Delete cancelled appointment dialog */}
+        <Dialog open={deleteAppointmentDialogOpen} onOpenChange={setDeleteAppointmentDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-semibold">Delete Appointment?</DialogTitle>
+              <DialogDescription className="text-gray-600 dark:text-gray-400">
+                Are you sure you want to permanently delete this appointment? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end gap-3 mt-6">
+              <Button 
+                variant="outline" 
+                onClick={() => setDeleteAppointmentDialogOpen(false)} 
+                disabled={deleteAppointmentLoading}
+                className="px-6"
+              >
+                Cancel
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={() => appointmentToDelete && handleDeleteAppointment(appointmentToDelete)} 
+                disabled={deleteAppointmentLoading}
+                className="px-6 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 shadow-md hover:shadow-lg transition-all duration-200"
+              >
+                {deleteAppointmentLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete Permanently
+                  </>
+                )}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete slot confirmation dialog */}
         {user?.role === "lecturer" && (
           <Dialog open={!!slotToDelete} onOpenChange={(open) => { if (!open) setSlotToDelete(null); }}>
-            <DialogContent>
+            <DialogContent className="sm:max-w-md">
               <DialogHeader>
-                <DialogTitle>Delete Slot?</DialogTitle>
-                <DialogDescription>Are you sure you want to delete this slot? This action cannot be undone.</DialogDescription>
+                <DialogTitle className="text-xl font-semibold">Delete Time Slot?</DialogTitle>
+                <DialogDescription className="text-gray-600 dark:text-gray-400">
+                  Are you sure you want to delete this time slot? This action cannot be undone.
+                </DialogDescription>
               </DialogHeader>
-              <div className="text-xs text-muted-foreground mb-2">slotToDelete: {slotToDelete || "(none)"}</div>
-              <div className="flex justify-end gap-2 mt-4">
-                <Button variant="outline" onClick={() => setSlotToDelete(null)}>Cancel</Button>
-                <Button variant="destructive" onClick={() => slotToDelete && handleDeleteSlot(slotToDelete)} disabled={slotDeleteLoading === slotToDelete}>
-                  {slotDeleteLoading === slotToDelete ? <Loader2 className="animate-spin w-4 h-4" /> : "Delete"}
+              <div className="flex justify-end gap-3 mt-6">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setSlotToDelete(null)}
+                  className="px-6"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  onClick={() => slotToDelete && handleDeleteSlot(slotToDelete)} 
+                  disabled={slotDeleteLoading === slotToDelete}
+                  className="px-6 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 shadow-md hover:shadow-lg transition-all duration-200"
+                >
+                  {slotDeleteLoading === slotToDelete ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete Slot
+                    </>
+                  )}
                 </Button>
               </div>
             </DialogContent>
