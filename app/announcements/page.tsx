@@ -23,7 +23,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import { useSearchParams } from "next/navigation"
-import { Plus, Search, Calendar, Megaphone, AlertTriangle, Info, BookOpen, Users, Shield, MessageSquare, TrendingUp, Clock } from "lucide-react"
+import { Plus, Search, Calendar, Megaphone, AlertTriangle, Info, BookOpen, Users, Shield, MessageSquare, TrendingUp, Clock, Edit, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import CreateAnnouncementForm from "@/components/forms/create-announcement-form"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -110,6 +110,8 @@ function AnnouncementsContent() {
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [authorFilter, setAuthorFilter] = useState("all")
   const [loading, setLoading] = useState(true)
+  const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
 
   useEffect(() => {
     const action = searchParams.get('action')
@@ -199,6 +201,96 @@ function AnnouncementsContent() {
         variant: "destructive"
       })
     }
+  }
+
+  const handleEditAnnouncement = async (formData: any) => {
+    if (!editingAnnouncement) return
+
+    try {
+      const response = await fetch('/api/announcements', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          _id: editingAnnouncement.id,
+          ...formData
+        })
+      })
+
+      if (response.ok) {
+        toast({
+          title: "Announcement updated",
+          description: "Your announcement has been updated successfully.",
+        })
+
+        setIsEditDialogOpen(false)
+        setEditingAnnouncement(null)
+        await fetchAnnouncements()
+        refreshNotifications()
+      } else {
+        const errorData = await response.json()
+        console.error('Error response:', errorData)
+        toast({
+          title: "Error updating announcement",
+          description: errorData.message || "Failed to update announcement",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error('Error updating announcement:', error)
+      toast({
+        title: "Error",
+        description: "Failed to update announcement",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleDeleteAnnouncement = async (announcementId: string) => {
+    if (!confirm('Are you sure you want to delete this announcement? This action cannot be undone.')) {
+      return
+    }
+
+    try {
+      const response = await fetch('/api/announcements', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ _id: announcementId })
+      })
+
+      if (response.ok) {
+        toast({
+          title: "Announcement deleted",
+          description: "Your announcement has been deleted successfully.",
+        })
+
+        await fetchAnnouncements()
+        refreshNotifications()
+      } else {
+        const errorData = await response.json()
+        console.error('Error response:', errorData)
+        toast({
+          title: "Error deleting announcement",
+          description: errorData.message || "Failed to delete announcement",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error('Error deleting announcement:', error)
+      toast({
+        title: "Error",
+        description: "Failed to delete announcement",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const openEditDialog = (announcement: Announcement) => {
+    setEditingAnnouncement(announcement)
+    setIsEditDialogOpen(true)
   }
 
   const getCategoryIcon = (category: AnnouncementCategory) => {
@@ -316,6 +408,25 @@ function AnnouncementsContent() {
             </div>
           </CardHeader>
         </Card>
+
+        {/* Edit Announcement Dialog */}
+        {isEditDialogOpen && editingAnnouncement && (
+          <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Edit Announcement</DialogTitle>
+                <DialogDescription>Update your announcement information.</DialogDescription>
+              </DialogHeader>
+              <CreateAnnouncementForm 
+                onSubmit={handleEditAnnouncement}
+                userRole={user?.role}
+                userDepartment={user?.department}
+                initialData={editingAnnouncement}
+                isEditing={true}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
 
         {/* Filters and Statistics for Lecturers */}
         {user?.role === "lecturer" && (
@@ -652,6 +763,28 @@ function AnnouncementsContent() {
                     : "All Departments"
                   }
                 </Badge>
+              )}
+              {/* Edit and Delete buttons for announcement author */}
+              {(user?.role === "admin" || user?.role === "lecturer") && 
+               (announcement.authorId === user?._id?.toString() || announcement.authorId === user?._id) && (
+                <div className="flex gap-1 ml-auto">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => openEditDialog(announcement)}
+                    className="h-8 w-8 p-0"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDeleteAnnouncement(announcement.id)}
+                    className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               )}
             </div>
           </div>
