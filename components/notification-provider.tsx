@@ -32,12 +32,31 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     if (!user) return
 
     try {
+      console.log('🔍 Fetching notifications for user:', {
+        name: user.name,
+        role: user.role,
+        department: user.department,
+        email: user.email,
+        id: user.id,
+        _id: user._id
+      })
+      
       const readResponse = await fetch('/api/notifications/read')
       const readData = readResponse.ok ? await readResponse.json() : { readIds: [] }
       const readIds = new Set(readData.readIds)
 
       const announcementsResponse = await fetch('/api/announcements')
       const announcements = announcementsResponse.ok ? await announcementsResponse.json() : []
+      console.log('📢 Announcements received:', announcements.length)
+      console.log('📢 Announcements details:', announcements.map(a => ({
+        title: a.title,
+        authorName: a.authorName,
+        authorRole: a.authorRole,
+        targetAudience: a.targetAudience,
+        isDepartmentSpecific: a.isDepartmentSpecific,
+        targetDepartments: a.targetDepartments,
+        createdAt: a.createdAt
+      })))
 
       let tickets: any[] = []
       if (user.role === 'admin' || user.role === 'lecturer') {
@@ -54,20 +73,64 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         const createdAt = new Date(announcement.createdAt)
         const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 
+        console.log('🔍 Processing announcement:', {
+          title: announcement.title,
+          targetAudience: announcement.targetAudience,
+          isDepartmentSpecific: announcement.isDepartmentSpecific,
+          targetDepartments: announcement.targetDepartments,
+          authorName: announcement.authorName,
+          authorRole: announcement.authorRole,
+          authorId: announcement.authorId,
+          createdAt: createdAt,
+          isRecent: createdAt > weekAgo,
+          currentUserName: user.name,
+          currentUserId: user._id || user.id
+        })
+
         if (createdAt > weekAgo) {
           let shouldShow = false
 
-          if (user.role === 'student') {
-            shouldShow = announcement.targetAudience?.includes('student')
-          } else if (user.role === 'lecturer') {
-            shouldShow = announcement.targetAudience?.includes('lecturer') && announcement.authorRole === 'admin'
-          } else if (user.role === 'admin') {
-            shouldShow = true
+          // Check if announcement is for the user's role
+          const isForUserRole = announcement.targetAudience?.includes(user.role)
+          console.log('👤 Is for user role?', isForUserRole, 'User role:', user.role)
+
+          if (isForUserRole) {
+            // For department-specific announcements, check if user's department is included
+            if (announcement.isDepartmentSpecific && announcement.targetDepartments) {
+              // If targetDepartments is empty array, it means "all departments"
+              if (announcement.targetDepartments.length === 0) {
+                shouldShow = true
+                console.log('✅ Empty targetDepartments - showing to all departments')
+              } else {
+                // Check if user's department is in the target departments
+                shouldShow = announcement.targetDepartments.includes(user.department)
+                console.log('🏢 Department check:', {
+                  userDepartment: user.department,
+                  targetDepartments: announcement.targetDepartments,
+                  shouldShow
+                })
+              }
+            } else {
+              // Non-department-specific announcements show to everyone
+              shouldShow = true
+              console.log('✅ Non-department-specific - showing to everyone')
+            }
           }
 
-          if (announcement.authorName === user.name) {
+          // Don't show announcements created by the current user
+          // Use authorId instead of authorName to properly distinguish between users with same name
+          if (announcement.authorId === user._id || announcement.authorId === user.id) {
             shouldShow = false
+            console.log('❌ Own announcement - not showing')
           }
+
+          // For lecturers, only show admin announcements (not their own)
+          if (user.role === 'lecturer' && announcement.authorRole !== 'admin') {
+            shouldShow = false
+            console.log('❌ Lecturer announcement from non-admin - not showing')
+          }
+
+          console.log('🎯 Final shouldShow:', shouldShow)
 
           if (shouldShow) {
             notificationsList.push({
@@ -78,6 +141,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
               createdAt,
               isRead: readIds.has(`announcement-${announcement._id || announcement.id}`)
             })
+            console.log('✅ Added announcement to notifications')
           }
         }
       })
@@ -123,6 +187,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
       const finalNotifications = notificationsList.slice(0, 5)
       const unreadNotifications = finalNotifications.filter(n => !n.isRead)
+
+      console.log('📊 Final notification stats:', {
+        totalNotifications: notificationsList.length,
+        finalNotifications: finalNotifications.length,
+        unreadCount: unreadNotifications.length
+      })
 
       setNotifications(finalNotifications)
       setUnreadCount(unreadNotifications.length)
