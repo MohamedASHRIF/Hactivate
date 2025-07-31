@@ -168,6 +168,58 @@ export default function DashboardPage() {
     return dashboardData?.recentActivity || []
   }
 
+  const getActivityIcon = (type: string) => {
+    switch (type) {
+      case 'ticket':
+        return <Ticket className="h-4 w-4" />
+      case 'appointment':
+        return <Calendar className="h-4 w-4" />
+      case 'announcement':
+        return <MessageSquare className="h-4 w-4" />
+      case 'message':
+        return <MessageSquare className="h-4 w-4" />
+      default:
+        return <Clock className="h-4 w-4" />
+    }
+  }
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'urgent':
+        return 'text-red-600 bg-red-50 dark:bg-red-950/20'
+      case 'high':
+        return 'text-orange-600 bg-orange-50 dark:bg-orange-950/20'
+      case 'medium':
+        return 'text-blue-600 bg-blue-50 dark:bg-blue-950/20'
+      case 'low':
+        return 'text-gray-600 bg-gray-50 dark:bg-gray-950/20'
+      default:
+        return 'text-gray-600 bg-gray-50 dark:bg-gray-950/20'
+    }
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'open':
+      case 'unread':
+      case 'new':
+        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+      case 'in_progress':
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+      case 'resolved':
+      case 'read':
+      case 'scheduled':
+      case 'published':
+        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+      case 'closed':
+      case 'cancelled':
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
+      default:
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
@@ -205,16 +257,32 @@ export default function DashboardPage() {
                 <div className="space-y-4">
                   {getRecentActivity().length > 0 ? (
                     getRecentActivity().map((activity: any) => (
-                      <div key={activity.id} className="flex items-start space-x-4">
-                        <div className="w-2 h-2 bg-primary rounded-full mt-2" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium">{activity.title}</p>
-                          <p className="text-sm text-muted-foreground">{activity.description}</p>
-                          <p className="text-xs text-muted-foreground mt-1">{activity.time}</p>
+                      <div key={activity.id} className="flex items-start space-x-4 p-3 rounded-lg hover:bg-muted/50 transition-colors">
+                        <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${getPriorityColor(activity.priority || 'medium')}`}>
+                          {getActivityIcon(activity.type)}
                         </div>
-                        <Badge variant="outline" className="text-xs">
-                          {activity.status}
-                        </Badge>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="text-sm font-medium truncate">{activity.title}</p>
+                            {activity.actionRequired && (
+                              <Badge variant="destructive" className="text-xs">
+                                Action Required
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground mb-1">{activity.description}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs text-muted-foreground">{activity.time}</p>
+                            <Badge variant="outline" className={`text-xs ${getStatusColor(activity.status)}`}>
+                              {activity.status}
+                            </Badge>
+                            {activity.priority && activity.priority !== 'medium' && (
+                              <Badge variant="outline" className={`text-xs ${getPriorityColor(activity.priority)}`}>
+                                {activity.priority}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     ))
                   ) : (
