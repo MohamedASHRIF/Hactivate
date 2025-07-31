@@ -14,7 +14,8 @@ import {
   LogOut,
   Users,
   BarChart3,
-  MessageCircle
+  MessageCircle,
+  Bot
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -34,6 +35,7 @@ export function Sidebar() {
   const navigation = {
     student: [
       { name: "Dashboard", href: "/dashboard", icon: Home },
+      { name: "AI Assistant", href: "/ai-chat", icon: Bot },
       { name: "Live Chat", href: "/chat", icon: MessageSquare },
       { name: "Forum", href: "/forum", icon: MessageCircle },
       { name: "My Tickets", href: "/tickets", icon: Ticket },

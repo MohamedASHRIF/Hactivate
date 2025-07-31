@@ -191,7 +191,7 @@ export default function AdminTicketView() {
 		try {
 			const newReply: TicketReply = {
 				id: Date.now().toString(),
-				userId: user._id || user.id || "",
+				userId: user._id || "",
 				userName: user.name || "Admin",
 				message: replyMessage,
 				createdAt: new Date().toISOString(),
