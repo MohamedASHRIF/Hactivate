@@ -439,6 +439,78 @@ if (!user) return null
     }
   };
 
+// AppointmentCalendar: highlights days with appointments for both students and lecturers
+function AppointmentCalendar({ appointments, selectedDate, setSelectedDate }: AppointmentCalendarProps) {
+  // Collect all appointment dates (startTime) as Date objects with time set to 00:00:00
+  const appointmentDays = appointments.map(a => {
+    const d = new Date(a.startTime);
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  });
+  // Create a Set of time values for fast lookup
+  const appointmentDaySet = new Set(appointmentDays.map(d => d.getTime()));
+  // Highlight days with appointments using modifiers
+  const modifiers = {
+    hasAppointment: (day: Date) => appointmentDaySet.has(new Date(day.getFullYear(), day.getMonth(), day.getDate()).getTime()),
+  };
+  const modifiersClassNames = {
+    hasAppointment: 'bg-primary/20 border-primary border-2 rounded-full text-primary font-bold',
+  };
+
+  // Find appointments for the selected date
+  const selectedDayAppointments = appointments.filter(a => {
+    const d = new Date(a.startTime);
+    return d.getFullYear() === selectedDate.getFullYear() &&
+      d.getMonth() === selectedDate.getMonth() &&
+      d.getDate() === selectedDate.getDate();
+  });
+
+  return (
+    <div>
+      <Calendar
+        mode="single"
+        selected={selectedDate}
+        onSelect={date => date && setSelectedDate(date)}
+        className="rounded-md border"
+        modifiers={modifiers}
+        modifiersClassNames={modifiersClassNames}
+      />
+      {/* Appointment details for selected date */}
+      <div className="mt-4">
+        {selectedDayAppointments.length === 0 ? (
+          <div className="text-muted-foreground text-sm text-center">No appointments for this day.</div>
+        ) : (
+          <div className="space-y-3">
+            {selectedDayAppointments.map((a, idx) => (
+              <div key={idx} className="p-3 border rounded-lg bg-muted">
+                <div className="font-semibold">{a.title}</div>
+                {a.description && <div className="text-sm text-muted-foreground mb-1">{a.description}</div>}
+                <div className="text-xs text-muted-foreground">
+                  Time: {new Date(a.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} - {new Date(a.endTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                </div>
+                {a.status && <div className="text-xs mt-1">Status: <span className="font-medium">{a.status}</span></div>}
+                {a.meetingLink && (
+                  <div className="text-xs mt-1">
+                    <a href={a.meetingLink} className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">Join Meeting</a>
+                  </div>
+                )}
+                {a.notes && (
+                  <div className="text-xs mt-1">Notes: {a.notes}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+// Interface for AppointmentCalendar props
+interface AppointmentCalendarProps {
+  appointments: Appointment[];
+  selectedDate: Date;
+  setSelectedDate: (date: Date) => void;
+}
+
   return (
     <main className="p-6">
       <div className="space-y-6">
@@ -609,20 +681,17 @@ if (!user) return null
           </div>
         </div>
 
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Calendar and Available Slots (Lecturer only) */}
-          {user?.role === "lecturer" && (
-            <Card className="lg:col-span-1">
-              <CardHeader>
-                <CardTitle>Calendar</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Calendar 
-                  mode="single" 
-                  selected={selectedDate} 
-                  onSelect={(date) => date && setSelectedDate(date)} 
-                  className="rounded-md border" 
-                />
+          {/* Unified Calendar for both students and lecturers */}
+          <Card className="mb-6 lg:col-span-1">
+            <CardHeader>
+              <CardTitle className="text-lg">Appointment Calendar</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <AppointmentCalendar appointments={appointments} selectedDate={selectedDate} setSelectedDate={setSelectedDate} />
+              {/* Available Slots for lecturers, now below the calendar */}
+              {user?.role === "lecturer" && (
                 <div className="mt-6">
                   <h3 className="font-semibold mb-4">Available Slots</h3>
                   <ScrollArea className="h-48">
@@ -647,7 +716,7 @@ if (!user) return null
                                   {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
                                 </p>
                               </div>
-                              <Button size="icon" variant="ghost" className="ml-2" onClick={() => { console.log('Delete slot clicked:', slotKey); setSlotToDelete(String(slotKey)); }} disabled={slotDeleteLoading === slotKey}>
+                              <Button size="icon" variant="ghost" className="ml-2" onClick={() => { setSlotToDelete(String(slotKey)); }} disabled={slotDeleteLoading === slotKey}>
                                 <Trash2 className="w-4 h-4" />
                               </Button>
                             </div>
@@ -656,9 +725,9 @@ if (!user) return null
                     </div>
                   </ScrollArea>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              )}
+            </CardContent>
+          </Card>
 
           {/* Appointments List */}
           <Card className="lg:col-span-2">
