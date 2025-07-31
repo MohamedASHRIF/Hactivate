@@ -1,4 +1,4 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { getDatabase } from "@/lib/mongodb"
 import jwt from "jsonwebtoken"
 import { ObjectId } from "mongodb"
@@ -28,12 +28,16 @@ export async function GET(request: NextRequest) {
         const student = await db.collection("users").findOne({ _id: appointment.studentId })
         const lecturer = await db.collection("users").findOne({ _id: appointment.lecturerId })
 
+        // Serialize ObjectId fields to string
         return {
           ...appointment,
+          _id: appointment._id?.toString(),
+          lecturerId: appointment.lecturerId?.toString(),
+          studentId: appointment.studentId?.toString(),
           studentName: student?.name || "Unknown",
           lecturerName: lecturer?.name || "Unknown",
         }
-      }),
+      })
     )
 
     return NextResponse.json(appointmentsWithUsers)
@@ -59,6 +63,7 @@ export async function POST(request: NextRequest) {
 
     const db = await getDatabase()
 
+    // New appointment requests are always 'pending' until teacher acts
     const newAppointment = {
       lecturerId: new ObjectId(lecturerId),
       studentId: new ObjectId(decoded.userId),
@@ -66,7 +71,7 @@ export async function POST(request: NextRequest) {
       description: description || null,
       startTime: new Date(startTime),
       endTime: new Date(endTime),
-      status: "scheduled",
+      status: "pending",
       meetingLink: meetingLink || null,
       location: location || null,
       createdAt: new Date(),
@@ -84,6 +89,136 @@ export async function POST(request: NextRequest) {
     )
   } catch (error) {
     console.error("Create appointment error:", error)
+    return NextResponse.json({ message: "Internal server error" }, { status: 500 })
+  }
+}
+
+// PATCH: Accept/reject appointment (teacher only)
+export async function PATCH(request: NextRequest) {
+  try {
+    const token = request.cookies.get("token")?.value
+    if (!token) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
+    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "fallback-secret") as any
+    const { appointmentId, action, startTime, endTime } = await request.json();
+    if (!appointmentId || !["accept", "reject", "reschedule"].includes(action)) {
+      return NextResponse.json({ message: "Invalid request" }, { status: 400 });
+    }
+    const db = await getDatabase();
+    const appointment = await db.collection("appointments").findOne({ _id: new ObjectId(appointmentId) });
+    if (!appointment) {
+      return NextResponse.json({ message: "Appointment not found" }, { status: 404 });
+    }
+    // Lecturer reschedules an accepted appointment
+    if (action === "reschedule") {
+      if (decoded.role !== "lecturer" || String(appointment.lecturerId) !== String(decoded.userId)) {
+        return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+      }
+      if (appointment.status !== "accepted") {
+        return NextResponse.json({ message: "Only accepted appointments can be rescheduled" }, { status: 400 });
+      }
+      if (!startTime || !endTime) {
+        return NextResponse.json({ message: "Start and end time required" }, { status: 400 });
+      }
+      const result = await db.collection("appointments").updateOne(
+        { _id: new ObjectId(appointmentId) },
+        { $set: { status: "rescheduled", startTime: new Date(startTime), endTime: new Date(endTime), updatedAt: new Date() } }
+      );
+      if (result.matchedCount === 0) {
+        return NextResponse.json({ message: "Appointment not found" }, { status: 404 });
+      }
+      return NextResponse.json({ message: "Appointment rescheduled and sent to student for approval" });
+    }
+    // Student accepts or rejects a rescheduled appointment
+    if ((action === "accept" || action === "reject") && appointment.status === "rescheduled") {
+      if (decoded.role !== "student" || String(appointment.studentId) !== String(decoded.userId)) {
+        return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+      }
+      const newStatus = action === "accept" ? "accepted" : "rejected";
+      const result = await db.collection("appointments").updateOne(
+        { _id: new ObjectId(appointmentId) },
+        { $set: { status: newStatus, updatedAt: new Date() } }
+      );
+      if (result.matchedCount === 0) {
+        return NextResponse.json({ message: "Appointment not found" }, { status: 404 });
+      }
+      return NextResponse.json({ message: `Appointment ${newStatus}` });
+    }
+    // Lecturer accepts/rejects pending appointment
+    if ((action === "accept" || action === "reject") && appointment.status === "pending") {
+      if (decoded.role !== "lecturer" || String(appointment.lecturerId) !== String(decoded.userId)) {
+        return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+      }
+      let newStatus = action === "accept" ? "accepted" : "rejected";
+      const result = await db.collection("appointments").updateOne(
+        { _id: new ObjectId(appointmentId) },
+        { $set: { status: newStatus, updatedAt: new Date() } }
+      );
+      if (result.matchedCount === 0) {
+        return NextResponse.json({ message: "Appointment not found" }, { status: 404 });
+      }
+      return NextResponse.json({ message: `Appointment ${newStatus}` });
+    }
+    // If neither, forbidden
+    return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+  } catch (error) {
+    console.error("Update appointment error:", error)
+    return NextResponse.json({ message: "Internal server error" }, { status: 500 })
+  }
+}
+
+// DELETE: Delete appointment (admin) or cancel (student)
+export async function DELETE(request: NextRequest) {
+  try {
+    const token = request.cookies.get("token")?.value
+    if (!token) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
+    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "fallback-secret") as any
+    const { appointmentId, hardDelete } = await request.json();
+    if (!appointmentId) {
+      return NextResponse.json({ message: "Appointment ID is required" }, { status: 400 });
+    }
+    const db = await getDatabase();
+    const appointment = await db.collection("appointments").findOne({ _id: new ObjectId(appointmentId) });
+    if (!appointment) {
+      return NextResponse.json({ message: "Appointment not found" }, { status: 404 });
+    }
+    // Hard delete if admin or lecturer and hardDelete is true
+    if ((decoded.role === "admin" || decoded.role === "lecturer") && hardDelete) {
+      const result = await db.collection("appointments").deleteOne({ _id: new ObjectId(appointmentId) });
+      if (result.deletedCount === 0) {
+        return NextResponse.json({ message: "Appointment not found" }, { status: 404 });
+      }
+      return NextResponse.json({ message: "Appointment deleted successfully" });
+    } else if (decoded.role === "student" && String(appointment.studentId) === String(decoded.userId)) {
+      // Student requests hard delete of their own cancelled or rejected appointment
+      if (hardDelete && ["cancelled", "rejected"].includes(appointment.status)) {
+        const result = await db.collection("appointments").deleteOne({ _id: new ObjectId(appointmentId) });
+        if (result.deletedCount === 0) {
+          return NextResponse.json({ message: "Appointment not found" }, { status: 404 });
+        }
+        return NextResponse.json({ message: "Appointment deleted successfully" });
+      }
+
+      // Student can cancel their own appointment if not completed/cancelled/rejected
+      if (["completed", "cancelled", "rejected"].includes(appointment.status)) {
+        return NextResponse.json({ message: "Cannot cancel a completed, rejected, or already cancelled appointment" }, { status: 400 });
+      }
+      const result = await db.collection("appointments").updateOne(
+        { _id: new ObjectId(appointmentId) },
+        { $set: { status: "cancelled", updatedAt: new Date() } }
+      );
+      if (result.matchedCount === 0) {
+        return NextResponse.json({ message: "Appointment not found" }, { status: 404 });
+      }
+      return NextResponse.json({ message: "Appointment cancelled successfully" });
+    } else {
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    }
+  } catch (error) {
+    console.error("Delete/cancel appointment error:", error)
     return NextResponse.json({ message: "Internal server error" }, { status: 500 })
   }
 }

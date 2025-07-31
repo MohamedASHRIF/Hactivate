@@ -1,4 +1,4 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { getDatabase } from "@/lib/mongodb"
 import jwt from "jsonwebtoken"
 import { ObjectId } from "mongodb"
@@ -29,7 +29,17 @@ export async function POST(request: NextRequest) {
     }
 
     const response = NextResponse.json({ message: "Logged out successfully" })
-    response.cookies.delete("token")
+    
+    // Clear the authentication cookie
+    response.cookies.set({
+      name: 'token',
+      value: '',
+      expires: new Date(0),
+      path: '/',
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax'
+    })
 
     return response
   } catch (error) {
