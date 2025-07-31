@@ -16,29 +16,37 @@ const DUMMY_ANALYTICS = {
 export async function GET(request: NextRequest) {
   try {
     const db = await getDatabase()
-    let analytics = await db.collection("analytics").findOne({})
     
-    if (!analytics) {
-      // Insert initial dummy data if no analytics exist
-      const insertResult = await db.collection("analytics").insertOne(DUMMY_ANALYTICS)
-      analytics = { ...DUMMY_ANALYTICS, _id: insertResult.insertedId }
-    } else {
-      // Update lastUpdated timestamp
-      const updatedData = {
-        ...analytics,
-        lastUpdated: new Date().toLocaleString(),
-        updatedAt: new Date()
-      }
-      await db.collection("analytics").updateOne(
-        { _id: analytics._id },
-        { $set: { lastUpdated: updatedData.lastUpdated, updatedAt: updatedData.updatedAt } }
-      )
-      analytics = updatedData
+    // Calculate real-time analytics from database collections
+    const [userCount, ticketCount, announcementCount, appointmentCount] = await Promise.all([
+      db.collection("users").countDocuments(),
+      db.collection("tickets").countDocuments(),
+      db.collection("announcements").countDocuments(),
+      db.collection("appointments").countDocuments()
+    ])
+    
+    const openTickets = await db.collection("tickets").countDocuments({ status: "open" })
+    const closedTickets = ticketCount - openTickets
+    
+    const realTimeAnalytics = {
+      totalUsers: userCount,
+      totalTickets: ticketCount,
+      openTickets: openTickets,
+      closedTickets: closedTickets,
+      totalAnnouncements: announcementCount,
+      totalAppointments: appointmentCount,
+      lastUpdated: new Date().toLocaleString(),
+      updatedAt: new Date()
     }
     
-    // Remove _id from response
-    const { _id, ...responseData } = analytics
-    return NextResponse.json(responseData)
+    // Update analytics collection with real-time data
+    await db.collection("analytics").replaceOne(
+      {},
+      realTimeAnalytics,
+      { upsert: true }
+    )
+    
+    return NextResponse.json(realTimeAnalytics)
   } catch (error) {
     console.error("Analytics API error:", error)
     return NextResponse.json({ message: "Internal server error" }, { status: 500 })

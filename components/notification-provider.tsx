@@ -57,15 +57,33 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         if (createdAt > weekAgo) {
           let shouldShow = false
 
-          if (user.role === 'student') {
-            shouldShow = announcement.targetAudience?.includes('student')
-          } else if (user.role === 'lecturer') {
-            shouldShow = announcement.targetAudience?.includes('lecturer') && announcement.authorRole === 'admin'
-          } else if (user.role === 'admin') {
-            shouldShow = true
+          // Check if announcement is for the user's role
+          const isForUserRole = announcement.targetAudience?.includes(user.role)
+
+          if (isForUserRole) {
+            // For department-specific announcements, check if user's department is included
+            if (announcement.isDepartmentSpecific && announcement.targetDepartments) {
+              // If targetDepartments is empty array, it means "all departments"
+              if (announcement.targetDepartments.length === 0) {
+                shouldShow = true
+              } else {
+                // Check if user's department is in the target departments
+                shouldShow = announcement.targetDepartments.includes(user.department)
+              }
+            } else {
+              // Non-department-specific announcements show to everyone
+              shouldShow = true
+            }
           }
 
-          if (announcement.authorName === user.name) {
+          // Don't show announcements created by the current user
+          // Use authorId instead of authorName to properly distinguish between users with same name
+          if (announcement.authorId === user._id || announcement.authorId === user.id) {
+            shouldShow = false
+          }
+
+          // For lecturers, only show admin announcements (not their own)
+          if (user.role === 'lecturer' && announcement.authorRole !== 'admin') {
             shouldShow = false
           }
 

@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
         status: "resolved"
       })
 
-      // Recent Activity for Students
+      // Enhanced Recent Activity for Students
       const recentTickets = await db.collection("tickets")
         .find({ authorId: new ObjectId(decoded.userId) })
         .sort({ createdAt: -1 })
@@ -53,24 +53,88 @@ export async function GET(request: NextRequest) {
         .limit(3)
         .toArray()
 
+      // Get relevant announcements for the student
+      const recentAnnouncements = await db.collection("announcements")
+        .find({
+          targetAudience: { $in: ["student"] },
+          $or: [
+            { isDepartmentSpecific: { $ne: true } },
+            {
+              $and: [
+                { isDepartmentSpecific: true },
+                { targetDepartments: { $in: [userDepartment] } }
+              ]
+            }
+          ],
+          createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
+        })
+        .sort({ createdAt: -1 })
+        .limit(2)
+        .toArray()
+
+      // Get recent messages
+      const recentMessages = await db.collection("messages")
+        .find({ 
+          recipientId: new ObjectId(decoded.userId),
+          createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
+        })
+        .sort({ createdAt: -1 })
+        .limit(2)
+        .toArray()
+
       const recentActivity = [
+        // Tickets with priority
         ...recentTickets.map(ticket => ({
           id: ticket._id.toString(),
           type: "ticket",
-          title: `Ticket: ${ticket.title}`,
-          description: ticket.description,
+          title: `Support Ticket: ${ticket.title}`,
+          description: ticket.description?.substring(0, 60) + (ticket.description?.length > 60 ? '...' : ''),
           time: new Date(ticket.createdAt).toLocaleDateString(),
-          status: ticket.status
+          status: ticket.status,
+          priority: ticket.priority === 'urgent' ? 'urgent' : ticket.priority === 'high' ? 'high' : 'medium',
+          actionRequired: ticket.status === 'open' || ticket.status === 'in_progress',
+          link: `/tickets`
         })),
+        
+        // Appointments
         ...recentAppointments.map(appointment => ({
           id: appointment._id.toString(),
           type: "appointment",
           title: `Appointment with ${appointment.lecturerName}`,
-          description: appointment.reason,
+          description: appointment.reason || 'Academic consultation',
           time: new Date(appointment.date).toLocaleDateString(),
-          status: appointment.status
+          status: appointment.status,
+          priority: appointment.status === 'scheduled' ? 'high' : 'medium',
+          actionRequired: appointment.status === 'pending',
+          link: `/appointments`
+        })),
+        
+        // Announcements
+        ...recentAnnouncements.map(announcement => ({
+          id: announcement._id.toString(),
+          type: "announcement",
+          title: `Announcement: ${announcement.title}`,
+          description: announcement.content?.substring(0, 60) + (announcement.content?.length > 60 ? '...' : ''),
+          time: new Date(announcement.createdAt).toLocaleDateString(),
+          status: 'new',
+          priority: announcement.category === 'urgent' ? 'urgent' : announcement.isPinned ? 'high' : 'medium',
+          actionRequired: false,
+          link: `/announcements`
+        })),
+        
+        // Messages
+        ...recentMessages.map(message => ({
+          id: message._id.toString(),
+          type: "message",
+          title: `Message from ${message.senderName || 'Faculty'}`,
+          description: message.content?.substring(0, 60) + (message.content?.length > 60 ? '...' : ''),
+          time: new Date(message.createdAt).toLocaleDateString(),
+          status: message.isRead ? 'read' : 'unread',
+          priority: message.isRead ? 'low' : 'high',
+          actionRequired: !message.isRead,
+          link: `/chat`
         }))
-      ].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()).slice(0, 5)
+      ].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()).slice(0, 8)
 
       return NextResponse.json({
         stats: [
@@ -106,10 +170,10 @@ export async function GET(request: NextRequest) {
       // Calculate average response time (mock for now)
       const responseTime = "2.3h"
 
-      // Recent Activity for Lecturers
+      // Enhanced Recent Activity for Lecturers
       const recentTickets = await db.collection("tickets")
         .find({ 
-          status: "open",
+          status: { $in: ["open", "in_progress"] },
           department: userDepartment 
         })
         .sort({ createdAt: -1 })
@@ -122,24 +186,103 @@ export async function GET(request: NextRequest) {
         .limit(3)
         .toArray()
 
+      // Get recent announcements from admin
+      const recentAnnouncements = await db.collection("announcements")
+        .find({
+          authorRole: "admin",
+          targetAudience: { $in: ["lecturer"] },
+          createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
+        })
+        .sort({ createdAt: -1 })
+        .limit(2)
+        .toArray()
+
+      // Get recent messages
+      const recentMessages = await db.collection("messages")
+        .find({ 
+          recipientId: new ObjectId(decoded.userId),
+          createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
+        })
+        .sort({ createdAt: -1 })
+        .limit(2)
+        .toArray()
+
+      // Get lecturer's own announcements
+      const myAnnouncements = await db.collection("lecturer_announcements")
+        .find({ 
+          authorId: new ObjectId(decoded.userId),
+          createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
+        })
+        .sort({ createdAt: -1 })
+        .limit(1)
+        .toArray()
+
       const recentActivity = [
+        // Department tickets
         ...recentTickets.map(ticket => ({
           id: ticket._id.toString(),
           type: "ticket",
           title: `New ticket from ${ticket.authorName}`,
           description: ticket.title,
           time: new Date(ticket.createdAt).toLocaleDateString(),
-          status: ticket.status
+          status: ticket.status,
+          priority: ticket.priority === 'urgent' ? 'urgent' : ticket.priority === 'high' ? 'high' : 'medium',
+          actionRequired: ticket.status === 'open',
+          link: `/tickets`
         })),
+        
+        // Appointments
         ...recentAppointments.map(appointment => ({
           id: appointment._id.toString(),
           type: "appointment",
           title: `Appointment with ${appointment.studentName}`,
-          description: appointment.reason,
+          description: appointment.reason || 'Student consultation',
           time: new Date(appointment.date).toLocaleDateString(),
-          status: appointment.status
+          status: appointment.status,
+          priority: appointment.status === 'scheduled' ? 'high' : 'medium',
+          actionRequired: appointment.status === 'pending',
+          link: `/appointments`
+        })),
+        
+        // Admin announcements
+        ...recentAnnouncements.map(announcement => ({
+          id: announcement._id.toString(),
+          type: "announcement",
+          title: `Admin Announcement: ${announcement.title}`,
+          description: announcement.content?.substring(0, 60) + (announcement.content?.length > 60 ? '...' : ''),
+          time: new Date(announcement.createdAt).toLocaleDateString(),
+          status: 'new',
+          priority: announcement.category === 'urgent' ? 'urgent' : announcement.isPinned ? 'high' : 'medium',
+          actionRequired: false,
+          link: `/announcements`
+        })),
+        
+        // Messages
+        ...recentMessages.map(message => ({
+          id: message._id.toString(),
+          type: "message",
+          title: `Message from ${message.senderName || 'Student'}`,
+          description: message.content?.substring(0, 60) + (message.content?.length > 60 ? '...' : ''),
+          time: new Date(message.createdAt).toLocaleDateString(),
+          status: message.isRead ? 'read' : 'unread',
+          priority: message.isRead ? 'low' : 'high',
+          actionRequired: !message.isRead,
+          link: `/chat`
+        })),
+        
+        // My announcements
+        ...myAnnouncements.map(announcement => ({
+          id: announcement._id.toString(),
+          type: "announcement",
+          title: `My Announcement: ${announcement.title}`,
+          description: announcement.content?.substring(0, 60) + (announcement.content?.length > 60 ? '...' : ''),
+          time: new Date(announcement.createdAt).toLocaleDateString(),
+          status: 'published',
+          priority: 'medium',
+          actionRequired: false,
+          link: `/announcements`
         }))
-      ].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()).slice(0, 5)
+      ].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()).slice(0, 8)
 
       return NextResponse.json({
         stats: [
