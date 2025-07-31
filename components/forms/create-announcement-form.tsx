@@ -260,7 +260,7 @@ export default function CreateAnnouncementForm({ onSubmit, userRole, userDepartm
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Form */}
         <div className="lg:col-span-2">
-          <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto">
+          <form onSubmit={handleSubmit} className="space-y-4 max-h-[calc(100vh-12rem)] overflow-y-auto">
             {/* Title */}
             <div className="space-y-2">
               <Label htmlFor="title">Title</Label>
@@ -432,8 +432,8 @@ export default function CreateAnnouncementForm({ onSubmit, userRole, userDepartm
         {/* AI Suggestions Panel */}
         {showAISuggestions && (
           <div className="lg:col-span-1">
-            <Card className="sticky top-4">
-              <CardHeader>
+            <Card className="sticky top-4 max-h-[calc(100vh-12rem)] overflow-hidden">
+              <CardHeader className="pb-3">
                 <CardTitle className="flex items-center space-x-2">
                   <Sparkles className="h-5 w-5" />
                   <span>AI Suggestions</span>
@@ -442,13 +442,13 @@ export default function CreateAnnouncementForm({ onSubmit, userRole, userDepartm
                   )}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 max-h-[calc(100vh-16rem)] overflow-y-auto">
                 {/* Title Suggestions */}
                 {suggestions.title && suggestions.title.length > 0 && (
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Title Suggestions</Label>
-                    <div className="space-y-2">
-                      {suggestions.title.map((suggestion, index) => (
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                      {suggestions.title.slice(0, 3).map((suggestion, index) => (
                         <div
                           key={index}
                           className="p-2 text-sm border rounded-md hover:bg-muted cursor-pointer transition-colors"
@@ -457,6 +457,11 @@ export default function CreateAnnouncementForm({ onSubmit, userRole, userDepartm
                           {suggestion}
                         </div>
                       ))}
+                      {suggestions.title.length > 3 && (
+                        <p className="text-xs text-muted-foreground text-center">
+                          +{suggestions.title.length - 3} more suggestions
+                        </p>
+                      )}
                     </div>
                   </div>
                 )}
@@ -481,13 +486,18 @@ export default function CreateAnnouncementForm({ onSubmit, userRole, userDepartm
                 {suggestions.improvements && suggestions.improvements.length > 0 && (
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Improvement Tips</Label>
-                    <div className="space-y-2">
-                      {suggestions.improvements.map((tip, index) => (
+                    <div className="space-y-1 max-h-24 overflow-y-auto">
+                      {suggestions.improvements.slice(0, 2).map((tip, index) => (
                         <div key={index} className="flex items-start space-x-2">
                           <Lightbulb className="h-4 w-4 text-yellow-500 mt-0.5 flex-shrink-0" />
                           <span className="text-sm text-muted-foreground">{tip}</span>
                         </div>
                       ))}
+                      {suggestions.improvements.length > 2 && (
+                        <p className="text-xs text-muted-foreground text-center">
+                          +{suggestions.improvements.length - 2} more tips
+                        </p>
+                      )}
                     </div>
                   </div>
                 )}
