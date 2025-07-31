@@ -126,11 +126,11 @@ export default function ChatPage() {
         reconnectAttempts = 0
         console.log('Connected to live chat')
         
-        toast({
-          title: "Connected",
-          description: "Real-time chat connected successfully",
-          duration: 2000,
-        })
+        // toast({
+        //   title: "Connected",
+        //   description: "Real-time chat connected successfully",
+        //   duration: 2000,
+        // })
       }
 
       eventSource.onmessage = (event) => {
@@ -148,11 +148,11 @@ export default function ChatPage() {
               setMessages(prev => [...prev, incomingMessage])
               
               // Show toast notification even when chat is open
-              toast({
-                title: `New message from ${senderName}`,
-                description: incomingMessage.content.substring(0, 100) + (incomingMessage.content.length > 100 ? '...' : ''),
-                duration: 3000,
-              })
+              // toast({
+              //   title: `New message from ${senderName}`,
+              //   description: incomingMessage.content.substring(0, 100) + (incomingMessage.content.length > 100 ? '...' : ''),
+              //   duration: 3000,
+              // })
             } else {
               // Show browser notification for messages not in current chat
               showNotification(
@@ -161,26 +161,26 @@ export default function ChatPage() {
               )
               
               // Show toast notification
-              toast({
-                title: `New message from ${senderName}`,
-                description: incomingMessage.content.substring(0, 100) + (incomingMessage.content.length > 100 ? '...' : ''),
-                duration: 5000,
-                action: (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      // Find and select the contact
-                      const contact = contacts.find(c => c.id === incomingMessage.senderId)
-                      if (contact) {
-                        setSelectedContact(contact)
-                      }
-                    }}
-                  >
-                    View
-                  </Button>
-                )
-              })
+              // toast({
+              //   title: `New message from ${senderName}`,
+              //   description: incomingMessage.content.substring(0, 100) + (incomingMessage.content.length > 100 ? '...' : ''),
+              //   duration: 5000,
+              //   action: (
+              //     <Button
+              //       variant="outline"
+              //       size="sm"
+              //       onClick={() => {
+              //         // Find and select the contact
+              //         const contact = contacts.find(c => c.id === incomingMessage.senderId)
+              //         if (contact) {
+              //           setSelectedContact(contact)
+              //         }
+              //       }}
+              //     >
+              //       View
+              //     </Button>
+              //   )
+              // })
             }
             
             // Update contact's last message and unread count
@@ -226,22 +226,22 @@ export default function ChatPage() {
           reconnectAttempts++
           const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000) // Exponential backoff, max 30s
           
-          toast({
-            title: "Connection Lost",
-            description: `Reconnecting in ${delay/1000}s... (Attempt ${reconnectAttempts}/${maxReconnectAttempts})`,
-            duration: 3000,
-          })
+          // toast({
+          //   title: "Connection Lost",
+          //   description: `Reconnecting in ${delay/1000}s... (Attempt ${reconnectAttempts}/${maxReconnectAttempts})`,
+          //   duration: 3000,
+          // })
 
           reconnectTimeout = setTimeout(() => {
             console.log(`Reconnection attempt ${reconnectAttempts}`)
             connectToSSE()
           }, delay)
         } else {
-          toast({
-            title: "Connection Failed",
-            description: "Unable to establish real-time connection. Please refresh the page.",
-            duration: 10000,
-          })
+          // toast({
+          //   title: "Connection Failed",
+          //   description: "Unable to establish real-time connection. Please refresh the page.",
+          //   duration: 10000,
+          // })
         }
       }
     }
