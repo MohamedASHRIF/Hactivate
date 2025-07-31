@@ -51,19 +51,21 @@ interface CreateAnnouncementFormProps {
   onSubmit: (data: any) => Promise<void>
   userRole?: "student" | "lecturer" | "admin"
   userDepartment?: string
+  initialData?: any
+  isEditing?: boolean
 }
 
 // Component
-export default function CreateAnnouncementForm({ onSubmit, userRole, userDepartment }: CreateAnnouncementFormProps) {
+export default function CreateAnnouncementForm({ onSubmit, userRole, userDepartment, initialData, isEditing }: CreateAnnouncementFormProps) {
   const [formData, setFormData] = useState({
-    title: "",
-    content: "",
-    category: "",
-    targetAudience: userRole === "lecturer" ? ["student"] : [] as string[],
-    isDepartmentSpecific: false,
-    targetDepartments: [] as string[],
-    isPinned: false,
-    expiresAt: "",
+    title: initialData?.title || "",
+    content: initialData?.content || "",
+    category: initialData?.category || "",
+    targetAudience: initialData?.targetAudience || (userRole === "lecturer" ? ["student"] : [] as string[]),
+    isDepartmentSpecific: initialData?.isDepartmentSpecific || false,
+    targetDepartments: initialData?.targetDepartments || [] as string[],
+    isPinned: initialData?.isPinned || false,
+    expiresAt: initialData?.expiresAt ? new Date(initialData.expiresAt).toISOString().slice(0, 16) : "",
   })
 
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -128,7 +130,7 @@ export default function CreateAnnouncementForm({ onSubmit, userRole, userDepartm
     } else {
       setFormData({
         ...formData,
-        targetAudience: formData.targetAudience.filter((a) => a !== audience)
+        targetAudience: formData.targetAudience.filter((a: string) => a !== audience)
       })
     }
   }
@@ -142,7 +144,7 @@ export default function CreateAnnouncementForm({ onSubmit, userRole, userDepartm
     } else {
       setFormData({
         ...formData,
-        targetDepartments: formData.targetDepartments.filter((d) => d !== department)
+        targetDepartments: formData.targetDepartments.filter((d: string) => d !== department)
       })
     }
   }
@@ -315,10 +317,10 @@ export default function CreateAnnouncementForm({ onSubmit, userRole, userDepartm
           {isSubmitting ? (
             <>
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-              Creating...
+              {isEditing ? "Updating..." : "Creating..."}
             </>
           ) : (
-            "Create Announcement"
+            isEditing ? "Update Announcement" : "Create Announcement"
           )}
         </Button>
       </div>
