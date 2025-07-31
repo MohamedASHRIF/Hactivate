@@ -32,51 +32,24 @@ export default function DashboardPage() {
       try {
         setIsLoadingData(true)
         
-        if (user.role === 'admin') {
-          // For admin, use mock data
+        // Fetch real data for all users including admin
+        const response = await fetch('/api/analytics')
+        if (response.ok) {
+          const analyticsData = await response.json()
+          
+          // Format the data for dashboard display
           setDashboardData({
             stats: [
-              { title: "Total Users", value: "1,234" },
-              { title: "Open Tickets", value: "23" },
-              { title: "System Uptime", value: "99.9%" },
-              { title: "Active Sessions", value: "156" }
+              { title: "Total Users", value: analyticsData.totalUsers?.toLocaleString() || "0" },
+              { title: "Open Tickets", value: analyticsData.openTickets?.toString() || "0" },
+              { title: "Total Announcements", value: analyticsData.totalAnnouncements?.toString() || "0" },
+              { title: "Total Appointments", value: analyticsData.totalAppointments?.toString() || "0" }
             ],
-            recentActivity: [
-              {
-                id: 1,
-                type: "ticket",
-                title: "New support ticket created",
-                description: "Technical issue with course materials",
-                time: "2 minutes ago",
-                status: "open",
-              },
-              {
-                id: 2,
-                type: "appointment",
-                title: "Appointment scheduled",
-                description: "Meeting with Dr. Smith tomorrow at 2 PM",
-                time: "1 hour ago",
-                status: "scheduled",
-              },
-              {
-                id: 3,
-                type: "message",
-                title: "New message received",
-                description: "Response to your academic inquiry",
-                time: "3 hours ago",
-                status: "unread",
-              },
-            ]
+            recentActivity: await fetchRecentActivity(),
+            analytics: analyticsData
           })
         } else {
-          // For students and lecturers, fetch real data
-          const response = await fetch('/api/dashboard/stats')
-          if (response.ok) {
-            const data = await response.json()
-            setDashboardData(data)
-          } else {
-            throw new Error('Failed to fetch dashboard data')
-          }
+          throw new Error('Failed to fetch dashboard data')
         }
       } catch (error) {
         console.error('Error fetching dashboard data:', error)
@@ -87,6 +60,71 @@ export default function DashboardPage() {
         })
       } finally {
         setIsLoadingData(false)
+      }
+    }
+
+    const fetchRecentActivity = async () => {
+      try {
+        const [ticketsResponse, appointmentsResponse, announcementsResponse] = await Promise.all([
+          fetch('/api/tickets'),
+          fetch('/api/appointments'),
+          fetch('/api/announcements')
+        ])
+
+        const activities = []
+
+        // Add recent tickets (limit to 3 most recent)
+        if (ticketsResponse.ok) {
+          const tickets = await ticketsResponse.json()
+          tickets.slice(0, 3).forEach((ticket: any) => {
+            activities.push({
+              id: ticket._id,
+              type: "ticket",
+              title: `Ticket: ${ticket.title}`,
+              description: ticket.description?.substring(0, 50) + (ticket.description?.length > 50 ? '...' : ''),
+              time: new Date(ticket.createdAt).toLocaleString(),
+              status: ticket.status,
+            })
+          })
+        }
+
+        // Add recent appointments (limit to 3 most recent)
+        if (appointmentsResponse.ok) {
+          const appointments = await appointmentsResponse.json()
+          appointments.slice(0, 3).forEach((appointment: any) => {
+            activities.push({
+              id: appointment._id,
+              type: "appointment",
+              title: `Appointment: ${appointment.title || 'Scheduled Meeting'}`,
+              description: `With ${appointment.lecturerName || 'Lecturer'}`,
+              time: new Date(appointment.startTime).toLocaleString(),
+              status: appointment.status,
+            })
+          })
+        }
+
+        // Add recent announcements (limit to 3 most recent)
+        if (announcementsResponse.ok) {
+          const announcements = await announcementsResponse.json()
+          announcements.slice(0, 3).forEach((announcement: any) => {
+            activities.push({
+              id: announcement._id,
+              type: "announcement",
+              title: `Announcement: ${announcement.title}`,
+              description: announcement.content?.substring(0, 50) + (announcement.content?.length > 50 ? '...' : ''),
+              time: new Date(announcement.createdAt).toLocaleString(),
+              status: announcement.isPinned ? 'pinned' : 'normal',
+            })
+          })
+        }
+
+        // Sort by time and take the most recent 5
+        return activities
+          .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+          .slice(0, 5)
+      } catch (error) {
+        console.error('Error fetching recent activity:', error)
+        return []
       }
     }
 

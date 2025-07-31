@@ -492,20 +492,6 @@ export default function CreateAnnouncementForm({ onSubmit, userRole, userDepartm
                   </div>
                 )}
 
-
-      {/* Submit Button - Fixed at bottom */}
-      <div className="sticky bottom-0 bg-background pt-4 border-t">
-        <Button type="submit" className="w-full" disabled={isSubmitting}>
-          {isSubmitting ? (
-            <>
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-              {isEditing ? "Updating..." : "Creating..."}
-            </>
-          ) : (
-            isEditing ? "Update Announcement" : "Create Announcement"
-          )}
-        </Button>
-
                 {/* Empty State */}
                 {!isLoadingSuggestions && Object.keys(suggestions).length === 0 && (
                   <div className="text-center py-6 text-muted-foreground">
@@ -517,8 +503,6 @@ export default function CreateAnnouncementForm({ onSubmit, userRole, userDepartm
             </Card>
           </div>
         )}
-        </div>
-
       </div>
     </div>
   )
