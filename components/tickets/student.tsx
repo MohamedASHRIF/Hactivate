@@ -160,11 +160,13 @@ export default function UserTicketView() {
 
 	const filteredTickets = tickets.filter((ticket) => {
 		const matchesSearch =
-			ticket.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-			ticket.description.toLowerCase().includes(searchQuery.toLowerCase());
+			(ticket.title?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false) ||
+			(ticket.description?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
+
 		const matchesStatus = statusFilter === "all" || ticket.status === statusFilter;
 		const matchesCategory =
 			categoryFilter === "all" || ticket.category === categoryFilter;
+
 		return matchesSearch && matchesStatus && matchesCategory;
 	});
 
