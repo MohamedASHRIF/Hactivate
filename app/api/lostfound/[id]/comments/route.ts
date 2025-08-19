@@ -140,8 +140,8 @@ export async function DELETE(
       )
     }
 
-    // Only comment author or admin can delete
-    if (comment.authorId.toString() !== decoded.userId && user.role !== 'admin') {
+    // Only comment author, admin, or lecturer can delete
+    if (comment.authorId.toString() !== decoded.userId && user.role !== 'admin' && user.role !== 'lecturer') {
       return NextResponse.json(
         { error: 'Permission denied' },
         { status: 403 }

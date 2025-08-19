@@ -68,8 +68,8 @@ export async function PUT(
       )
     }
 
-    // Only author or admin can edit
-    if (existingPost.authorId.toString() !== decoded.userId && user.role !== 'admin') {
+    // Only author, admin, or lecturer can edit
+    if (existingPost.authorId.toString() !== decoded.userId && user.role !== 'admin' && user.role !== 'lecturer') {
       return NextResponse.json(
         { error: 'Permission denied' },
         { status: 403 }
@@ -148,8 +148,8 @@ export async function DELETE(
       )
     }
 
-    // Only author or admin can delete
-    if (existingPost.authorId.toString() !== decoded.userId && user.role !== 'admin') {
+    // Only author, admin, or lecturer can delete
+    if (existingPost.authorId.toString() !== decoded.userId && user.role !== 'admin' && user.role !== 'lecturer') {
       return NextResponse.json(
         { error: 'Permission denied' },
         { status: 403 }
