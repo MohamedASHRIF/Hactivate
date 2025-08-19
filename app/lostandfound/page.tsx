@@ -368,9 +368,21 @@ export default function LostAndFoundPage() {
 
   if (loading) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-lg">Loading...</div>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="space-y-4 w-full max-w-2xl">
+          <div className="flex gap-4">
+            <div className="h-12 w-12 rounded-full bg-muted animate-pulse" />
+            <div className="flex-1 space-y-2">  
+              <div className="h-6 w-1/2 bg-muted rounded animate-pulse" />
+              <div className="h-4 w-1/3 bg-muted rounded animate-pulse" />
+            </div>
+
+          </div>
+          <div className="h-32 w-full bg-muted rounded animate-pulse" />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="h-24 bg-muted rounded animate-pulse" />
+            <div className="h-24 bg-muted rounded animate-pulse" />
+          </div>
         </div>
       </div>
     )
