@@ -13,8 +13,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
 import { useToast } from '@/hooks/use-toast'
-import { Search, Plus, MapPin, Calendar, User, MessageCircle, Trash2, CheckCircle, XCircle } from 'lucide-react'
+import { Search, Plus, MapPin, Calendar, User, MessageCircle, Trash2, CheckCircle, XCircle, Shield } from 'lucide-react'
 import { format } from 'date-fns'
+import { Sidebar } from '@/components/layout/sidebar'
+import { Header } from '@/components/layout/header'
 
 interface LostFoundPost {
   _id: string
@@ -210,7 +212,16 @@ export default function LostAndFoundPage() {
   }
 
   const handleDeletePost = async (postId: string) => {
-    if (!confirm('Are you sure you want to delete this post?')) return
+    const post = posts.find(p => p._id === postId)
+    const isOwnPost = user?._id?.toString() === post?.authorId
+    const isAdmin = hasAdminPrivileges(user)
+    
+    let confirmMessage = 'Are you sure you want to delete this post?'
+    if (isAdmin && !isOwnPost) {
+      confirmMessage = `You are about to delete a post by ${post?.authorName}. This action cannot be undone. Are you sure?`
+    }
+    
+    if (!confirm(confirmMessage)) return
 
     try {
       const response = await fetch(`/api/lostfound/${postId}`, {
@@ -284,6 +295,17 @@ export default function LostAndFoundPage() {
   const handleDeleteComment = async (commentId: string) => {
     if (!selectedPost) return
 
+    const comment = selectedPost.comments.find(c => c._id === commentId)
+    const isOwnComment = user?._id?.toString() === comment?.authorId
+    const isAdmin = hasAdminPrivileges(user)
+    
+    let confirmMessage = 'Are you sure you want to delete this comment?'
+    if (isAdmin && !isOwnComment) {
+      confirmMessage = `You are about to delete a comment by ${comment?.authorName}. This action cannot be undone. Are you sure?`
+    }
+    
+    if (!confirm(confirmMessage)) return
+
     try {
       const response = await fetch(`/api/lostfound/${selectedPost._id}/comments`, {
         method: 'DELETE',
@@ -340,6 +362,10 @@ export default function LostAndFoundPage() {
     return type === 'lost' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'
   }
 
+  const hasAdminPrivileges = (user: any) => {
+    return user?.role === 'admin' || user?.role === 'lecturer'
+  }
+
   if (loading) {
     return (
       <div className="container mx-auto p-6">
@@ -351,10 +377,27 @@ export default function LostAndFoundPage() {
   }
 
   return (
-    <div className="container mx-auto p-6">
+    <div className="min-h-screen bg-background">
+      {/* Sidebar */}
+      <Sidebar />
+
+      {/* Main content with header */}
+      <div className="md:ml-64">
+        <Header />
+
+        <main className="p-6">
+        <div className="container mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold">Lost & Found</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold">Lost & Found</h1>
+            {hasAdminPrivileges(user) && (
+              <Badge variant="secondary" className="flex items-center gap-1">
+                <Shield className="w-3 h-3" />
+                {user?.role === 'admin' ? 'Admin' : 'Lecturer'}
+              </Badge>
+            )}
+          </div>
           <p className="text-muted-foreground">Help each other find lost items</p>
         </div>
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
@@ -605,6 +648,20 @@ export default function LostAndFoundPage() {
                     Claim
                   </Button>
                 )}
+                {(user?._id?.toString() === post.authorId || hasAdminPrivileges(user)) && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleDeletePost(post._id)}
+                    title={hasAdminPrivileges(user) && user?._id?.toString() !== post.authorId ? `Delete post by ${post.authorName}` : 'Delete your post'}
+                    className={hasAdminPrivileges(user) && user?._id?.toString() !== post.authorId ? 'relative' : ''}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    {hasAdminPrivileges(user) && user?._id?.toString() !== post.authorId && (
+                      <Shield className="w-3 h-3 absolute -top-1 -right-1 text-white" />
+                    )}
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -709,14 +766,18 @@ export default function LostAndFoundPage() {
                             <span className="text-xs text-muted-foreground">
                               {format(new Date(comment.createdAt), 'MMM dd, yyyy HH:mm')}
                             </span>
-                                                         {(user?._id?.toString() === comment.authorId || user?.role === 'admin') && (
+                                                         {(user?._id?.toString() === comment.authorId || hasAdminPrivileges(user)) && (
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleDeleteComment(comment._id)}
-                                className="h-auto p-1"
+                                className={`h-auto p-1 ${hasAdminPrivileges(user) && user?._id?.toString() !== comment.authorId ? 'relative' : ''}`}
+                                title={hasAdminPrivileges(user) && user?._id?.toString() !== comment.authorId ? `Delete comment by ${comment.authorName}` : 'Delete your comment'}
                               >
                                 <Trash2 className="w-3 h-3" />
+                                {hasAdminPrivileges(user) && user?._id?.toString() !== comment.authorId && (
+                                  <Shield className="w-2 h-2 absolute -top-0.5 -right-0.5 text-red-500" />
+                                )}
                               </Button>
                             )}
                           </div>
@@ -752,13 +813,18 @@ export default function LostAndFoundPage() {
                     )}
                   </div>
                   
-                                     {(user?._id?.toString() === selectedPost.authorId || user?.role === 'admin') && (
+                                     {(user?._id?.toString() === selectedPost.authorId || hasAdminPrivileges(user)) && (
                     <Button
                       variant="destructive"
                       onClick={() => handleDeletePost(selectedPost._id)}
+                      title={hasAdminPrivileges(user) && user?._id?.toString() !== selectedPost.authorId ? `Delete post by ${selectedPost.authorName}` : 'Delete your post'}
+                      className={hasAdminPrivileges(user) && user?._id?.toString() !== selectedPost.authorId ? 'relative' : ''}
                     >
                       <Trash2 className="w-4 h-4 mr-2" />
                       Delete Post
+                      {hasAdminPrivileges(user) && user?._id?.toString() !== selectedPost.authorId && (
+                        <Shield className="w-3 h-3 ml-1" />
+                      )}
                     </Button>
                   )}
                 </div>
@@ -768,5 +834,10 @@ export default function LostAndFoundPage() {
         </DialogContent>
       </Dialog>
     </div>
-  )
+ 
+        </main>
+      </div>
+    </div>
+ )
 }
+ 
