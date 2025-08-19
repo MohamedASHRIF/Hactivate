@@ -364,10 +364,13 @@ export default function LostAndFoundPage() {
               Post Item
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Post Lost or Found Item</DialogTitle>
-            </DialogHeader>
+                     <DialogContent className="max-w-2xl" aria-describedby="create-post-description">
+             <DialogHeader>
+               <DialogTitle>Post Lost or Found Item</DialogTitle>
+             </DialogHeader>
+             <div id="create-post-description" className="sr-only">
+               Form to create a new lost or found item post
+             </div>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -615,8 +618,11 @@ export default function LostAndFoundPage() {
       )}
 
       {/* Post Detail Dialog */}
-      <Dialog open={showPostDialog} onOpenChange={setShowPostDialog}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+             <Dialog open={showPostDialog} onOpenChange={setShowPostDialog}>
+         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto" aria-describedby="post-detail-description">
+           <div id="post-detail-description" className="sr-only">
+             Detailed view of lost or found item post
+           </div>
           {selectedPost && (
             <>
               <DialogHeader>
