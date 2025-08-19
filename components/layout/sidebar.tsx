@@ -43,7 +43,7 @@ export function Sidebar() {
       { name: "Appointments", href: "/appointments", icon: Calendar },
       { name: "Announcements", href: "/announcements", icon: Megaphone },
       { name: "Settings", href: "/settings", icon: Settings },
-      { name: "Lost & Found", href: "/lostandfound", icon: Search }
+      { name: "Lost & Found", href: "/lost-found", icon: Search }
     ],
     lecturer: [
       { name: "Dashboard", href: "/dashboard", icon: Home },
@@ -53,7 +53,7 @@ export function Sidebar() {
       { name: "Appointments", href: "/appointments", icon: Calendar },
       { name: "Announcements", href: "/announcements", icon: Megaphone },
       { name: "Settings", href: "/settings", icon: Settings },
-      {name: "Lost & Found", href: "/lostandfound", icon: Search }
+      { name: "Lost & Found", href: "/lost-found", icon: Search }
       
     ],
     admin: [
@@ -63,7 +63,7 @@ export function Sidebar() {
       { name: "Tickets", href: "/tickets", icon: Ticket },
       { name: "Announcements", href: "/announcements", icon: Megaphone },
       { name: "Settings", href: "/settings", icon: Settings },
-      {name: "Lost & Found", href: "/lostandfound", icon: Search }
+      { name: "Lost & Found", href: "/lost-found", icon: Search }
     ],
   }
 
