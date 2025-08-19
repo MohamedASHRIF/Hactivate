@@ -15,7 +15,8 @@ import {
   Users,
   BarChart3,
   MessageCircle,
-  Bot
+  Bot,
+  Search
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -42,6 +43,7 @@ export function Sidebar() {
       { name: "Appointments", href: "/appointments", icon: Calendar },
       { name: "Announcements", href: "/announcements", icon: Megaphone },
       { name: "Settings", href: "/settings", icon: Settings },
+      { name: "Lost & Found", href: "/lostandfound", icon: Search }
     ],
     lecturer: [
       { name: "Dashboard", href: "/dashboard", icon: Home },
@@ -51,6 +53,8 @@ export function Sidebar() {
       { name: "Appointments", href: "/appointments", icon: Calendar },
       { name: "Announcements", href: "/announcements", icon: Megaphone },
       { name: "Settings", href: "/settings", icon: Settings },
+      {name: "Lost & Found", href: "/lostandfound", icon: Search }
+      
     ],
     admin: [
       { name: "Dashboard", href: "/dashboard", icon: Home },
@@ -59,6 +63,7 @@ export function Sidebar() {
       { name: "Tickets", href: "/tickets", icon: Ticket },
       { name: "Announcements", href: "/announcements", icon: Megaphone },
       { name: "Settings", href: "/settings", icon: Settings },
+      {name: "Lost & Found", href: "/lostandfound", icon: Search }
     ],
   }
 
