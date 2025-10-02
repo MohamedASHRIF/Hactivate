@@ -333,23 +333,38 @@ export default function DashboardPage() {
             </Card>
 
             {/* Quick Actions */}
+            
             <Card>
               <CardHeader>
                 <CardTitle>Quick Actions</CardTitle>
                 <CardDescription>Common tasks and shortcuts</CardDescription>
               </CardHeader>
               <CardContent>
+
                 <div className="grid grid-cols-2 gap-4">
-                  <Button 
-                    variant="outline" 
-                    className="h-20 flex flex-col bg-transparent hover:bg-primary/5 transition-colors"
-                    onClick={() => handleQuickAction('chat')}
-                    disabled={isNavigating}
-                  >
-                    <MessageSquare className="h-6 w-6 mb-2" />
-                    <span className="text-sm">Start Chat</span>
-                  </Button>
-                  
+                  {/* Only show Start Chat and Book Appointment for non-admin users */}
+                  {user.role !== 'admin' && (
+                    <>
+                      <Button 
+                        variant="outline" 
+                        className="h-20 flex flex-col bg-transparent hover:bg-primary/5 transition-colors"
+                        onClick={() => handleQuickAction('chat')}
+                        disabled={isNavigating}
+                      >
+                        <MessageSquare className="h-6 w-6 mb-2" />
+                        <span className="text-sm">Start Chat</span>
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        className="h-20 flex flex-col bg-transparent hover:bg-primary/5 transition-colors"
+                        onClick={() => handleQuickAction('book-appointment')}
+                        disabled={isNavigating}
+                      >
+                        <Calendar className="h-6 w-6 mb-2" />
+                        <span className="text-sm">Book Appointment</span>
+                      </Button>
+                    </>
+                  )}
                   <Button 
                     variant="outline" 
                     className="h-20 flex flex-col bg-transparent hover:bg-primary/5 transition-colors"
@@ -357,19 +372,8 @@ export default function DashboardPage() {
                     disabled={isNavigating}
                   >
                     <Ticket className="h-6 w-6 mb-2" />
-                    <span className="text-sm">New Ticket</span>
+                    <span className="text-sm">Ticket</span>
                   </Button>
-                  
-                  <Button 
-                    variant="outline" 
-                    className="h-20 flex flex-col bg-transparent hover:bg-primary/5 transition-colors"
-                    onClick={() => handleQuickAction('book-appointment')}
-                    disabled={isNavigating}
-                  >
-                    <Calendar className="h-6 w-6 mb-2" />
-                    <span className="text-sm">Book Appointment</span>
-                  </Button>
-                  
                   {user.role === 'admin' ? (
                     <Button 
                       variant="outline" 
