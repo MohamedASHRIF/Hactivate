@@ -26,40 +26,27 @@ import { useSearchParams } from "next/navigation"
 import { Plus, CalendarIcon, Clock, User, Video, MapPin, Edit, Trash2, Loader2, CheckCircle, XCircle, AlertCircle, Calendar as CalendarLarge, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Appointment, TimeSlot } from "@/lib/models/Appointment"
+import { ObjectId } from "mongodb"
 
-// Frontend representation with string IDs and additional display fields
-interface AppointmentWithNames {
-  _id?: string
-  lecturerId: string
-  studentId: string
-  lecturerName: string
-  studentName: string
-  title: string
-  description?: string
-  startTime: string | Date
-  endTime: string | Date
-  status: "pending" | "accepted" | "rejected" | "scheduled" | "completed" | "cancelled" | "rescheduled"
-  meetingLink?: string
-  location?: string
-  notes?: string
-  createdAt?: Date
-  updatedAt?: Date
+// Utility type to convert ObjectId fields to strings for frontend
+type SerializedModel<T> = {
+  [K in keyof T]: T[K] extends ObjectId | undefined 
+    ? string | undefined 
+    : T[K] extends ObjectId 
+    ? string 
+    : T[K]
 }
 
-// Frontend representation of time slots with string IDs and display fields
-interface TimeSlotWithNames {
-  _id?: string
-  id: string
-  lecturerId: string
+// Frontend representation with serialized IDs and additional display fields
+interface AppointmentWithNames extends SerializedModel<Appointment> {
   lecturerName: string
-  startTime: Date | string
-  endTime: Date | string
-  isAvailable: boolean
-  recurring?: {
-    type: "weekly" | "daily"
-    endDate: Date
-  }
-  createdAt?: Date
+  studentName: string
+}
+
+// Frontend representation of time slots with serialized IDs and display fields
+interface TimeSlotWithNames extends SerializedModel<TimeSlot> {
+  id: string
+  lecturerName: string
 }
 
 interface LecturerOption {
