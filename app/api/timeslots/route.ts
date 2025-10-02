@@ -38,6 +38,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getDatabase } from "@/lib/mongodb"
 import jwt from "jsonwebtoken"
 import { ObjectId } from "mongodb"
+import { TimeSlot } from "@/lib/models/Appointment"
 
 export async function GET(request: NextRequest) {
   try {
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
 
     const db = await getDatabase()
 
-    const newTimeSlot = {
+    const newTimeSlot: Omit<TimeSlot, '_id'> = {
       lecturerId: new ObjectId(decoded.userId),
       startTime: new Date(startTime),
       endTime: new Date(endTime),

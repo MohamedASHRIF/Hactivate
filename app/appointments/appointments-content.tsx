@@ -25,30 +25,41 @@ import { useToast } from "@/hooks/use-toast"
 import { useSearchParams } from "next/navigation"
 import { Plus, CalendarIcon, Clock, User, Video, MapPin, Edit, Trash2, Loader2, CheckCircle, XCircle, AlertCircle, Calendar as CalendarLarge, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Appointment, TimeSlot } from "@/lib/models/Appointment"
 
-interface Appointment {
+// Frontend representation with string IDs and additional display fields
+interface AppointmentWithNames {
   _id?: string
-  title: string
-  description?: string
-  lecturerName: string
-  studentName: string
   lecturerId: string
   studentId: string
+  lecturerName: string
+  studentName: string
+  title: string
+  description?: string
   startTime: string | Date
   endTime: string | Date
   status: "pending" | "accepted" | "rejected" | "scheduled" | "completed" | "cancelled" | "rescheduled"
   meetingLink?: string
   location?: string
   notes?: string
+  createdAt?: Date
+  updatedAt?: Date
 }
 
-interface TimeSlot {
+// Frontend representation of time slots with string IDs and display fields
+interface TimeSlotWithNames {
+  _id?: string
   id: string
   lecturerId: string
   lecturerName: string
   startTime: Date | string
   endTime: Date | string
   isAvailable: boolean
+  recurring?: {
+    type: "weekly" | "daily"
+    endDate: Date
+  }
+  createdAt?: Date
 }
 
 interface LecturerOption {
@@ -120,9 +131,9 @@ export default function AppointmentsContent() {
   const { user } = useAuth()
   const { toast } = useToast()
   const searchParams = useSearchParams()
-  const [appointments, setAppointments] = useState<Appointment[]>([])
-  const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([])
-  const [lecturers, setLecturers] = useState<LecturerOption[]>([])
+  const [appointments, setAppointments] = useState<AppointmentWithNames[]>([])
+  const [availableSlots, setAvailableSlots] = useState<TimeSlotWithNames[]>([])
+  const [lecturers, setLecturers] = useState<{ _id: string; name: string }[]>([])
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [isBookingDialogOpen, setIsBookingDialogOpen] = useState(false)
   const [isCreateSlotDialogOpen, setIsCreateSlotDialogOpen] = useState(false)
@@ -583,7 +594,7 @@ export default function AppointmentsContent() {
 
   // Interface for AppointmentCalendar props
   interface AppointmentCalendarProps {
-    appointments: Appointment[];
+    appointments: AppointmentWithNames[];
     selectedDate: Date;
     setSelectedDate: (date: Date) => void;
   }

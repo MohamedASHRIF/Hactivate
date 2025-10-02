@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getDatabase } from "@/lib/mongodb"
 import jwt from "jsonwebtoken"
 import { ObjectId } from "mongodb"
+import { Appointment } from "@/lib/models/Appointment"
 
 export async function GET(request: NextRequest) {
   try {
@@ -64,16 +65,17 @@ export async function POST(request: NextRequest) {
     const db = await getDatabase()
 
     // New appointment requests are always 'pending' until teacher acts
-    const newAppointment = {
+    const newAppointment: Omit<Appointment, '_id'> = {
       lecturerId: new ObjectId(lecturerId),
       studentId: new ObjectId(decoded.userId),
       title,
-      description: description || null,
+      description: description || undefined,
       startTime: new Date(startTime),
       endTime: new Date(endTime),
       status: "pending",
-      meetingLink: meetingLink || null,
-      location: location || null,
+      meetingLink: meetingLink || undefined,
+      location: location || undefined,
+      notes: undefined,
       createdAt: new Date(),
       updatedAt: new Date(),
     }
